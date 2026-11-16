@@ -1,13 +1,17 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/app_exception.dart';
 
 /// Repository encapsulating Firebase Authentication operations.
 class AuthRepository {
-  AuthRepository({FirebaseAuth? firebaseAuth})
-    : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
+  AuthRepository({FirebaseAuth? firebaseAuth, FirebaseFirestore? firestore})
+    : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
+      _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseAuth _firebaseAuth;
+  final FirebaseFirestore _firestore;
 
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
 
@@ -57,6 +61,17 @@ class AuthRepository {
       if (trimmedName.isNotEmpty) {
         await user.updateDisplayName(trimmedName);
         await user.reload();
+        try {
+          await _firestore
+              .collection(AppConstants.usersCollection)
+              .doc(user.uid)
+              .set({
+                'displayName': trimmedName,
+                'bio': '',
+                'avatarKey': 'cinema',
+                'updatedAt': Timestamp.fromDate(DateTime.now()),
+              }, SetOptions(merge: true));
+        } catch (_) {}
         return _firebaseAuth.currentUser ?? user;
       }
       return user;

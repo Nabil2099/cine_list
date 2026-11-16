@@ -45,6 +45,7 @@ class AuthState extends Equatable {
   List<Object?> get props => [
     status,
     user?.uid,
+    user?.displayName,
     isLoading,
     isRegisterMode,
     errorMessage,

@@ -9,8 +9,6 @@ import '../../features/community/presentation/cubit/community_cubit.dart';
 import '../../features/discover/data/datasources/tmdb_remote_data_source.dart';
 import '../../features/discover/data/repositories/discover_repository.dart';
 import '../../features/discover/presentation/cubit/discover_cubit.dart';
-import '../../features/match_room/data/repositories/match_room_repository.dart';
-import '../../features/match_room/presentation/cubit/match_room_cubit.dart';
 import '../../features/movie_details/data/repositories/movie_details_repository.dart';
 import '../../features/movie_details/presentation/cubit/movie_details_cubit.dart';
 import '../../features/watchlist/data/repositories/watchlist_repository.dart';
@@ -45,9 +43,6 @@ Future<void> configureDependencies({
   sl.registerLazySingleton<WatchlistRepository>(() => WatchlistRepository());
   sl.registerLazySingleton<AiChatRepository>(() => AiChatRepository());
   sl.registerLazySingleton<CommunityRepository>(() => CommunityRepository());
-  sl.registerLazySingleton<MatchRoomRepository>(
-    () => MatchRoomRepository(remoteDataSource: sl<TmdbRemoteDataSource>()),
-  );
 
   // Cubits
   sl.registerFactory<AuthCubit>(() => AuthCubit(sl<AuthRepository>()));
@@ -66,8 +61,5 @@ Future<void> configureDependencies({
   sl.registerFactory<AiChatCubit>(() => AiChatCubit(sl<AiChatRepository>()));
   sl.registerFactory<CommunityCubit>(
     () => CommunityCubit(sl<CommunityRepository>()),
-  );
-  sl.registerFactory<MatchRoomCubit>(
-    () => MatchRoomCubit(sl<MatchRoomRepository>()),
   );
 }

@@ -40,6 +40,7 @@ class AuthRepository {
   Future<User> registerWithEmail({
     required String email,
     required String password,
+    String displayName = '',
   }) async {
     try {
       final credential = await _firebaseAuth.createUserWithEmailAndPassword(
@@ -51,6 +52,12 @@ class AuthRepository {
         throw const AuthException(
           'Unable to create account. Please try again.',
         );
+      }
+      final trimmedName = displayName.trim();
+      if (trimmedName.isNotEmpty) {
+        await user.updateDisplayName(trimmedName);
+        await user.reload();
+        return _firebaseAuth.currentUser ?? user;
       }
       return user;
     } on FirebaseAuthException catch (e) {

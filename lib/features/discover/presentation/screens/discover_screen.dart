@@ -12,6 +12,7 @@ import '../../../../shared/models/movie_summary.dart';
 import '../../../../shared/widgets/movie_card.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../auth/presentation/cubit/auth_state.dart';
+import '../../../community/presentation/cubit/community_cubit.dart';
 import '../../../watchlist/presentation/cubit/watchlist_cubit.dart';
 import '../cubit/discover_cubit.dart';
 import '../cubit/discover_state.dart';
@@ -58,6 +59,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final userEmail = context.select<AuthCubit, String?>(
       (cubit) => cubit.state.user?.email,
     );
+    final authDisplayName = context.select<AuthCubit, String?>(
+      (cubit) => cubit.state.user?.displayName,
+    );
+    final profileDisplayName = context.select<CommunityCubit, String?>(
+      (cubit) => cubit.state.profile?.displayName,
+    );
+    final greetingName =
+        (profileDisplayName != null && profileDisplayName.trim().isNotEmpty)
+        ? profileDisplayName.trim()
+        : (authDisplayName != null && authDisplayName.trim().isNotEmpty)
+        ? authDisplayName.trim()
+        : Formatters.greetingName(userEmail);
 
     return SafeArea(
       child: Center(
@@ -76,7 +89,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
                   sliver: SliverToBoxAdapter(
                     child: _DiscoverHeader(
-                      greetingName: Formatters.greetingName(userEmail),
+                      greetingName: greetingName,
                       userEmail: userEmail,
                       onSignOut: () => context.read<AuthCubit>().signOut(),
                     ),

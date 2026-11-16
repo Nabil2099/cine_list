@@ -44,7 +44,11 @@ class _CineListAppState extends State<CineListApp> {
     final currentUser = _authCubit.state.user;
     if (currentUser != null) {
       _watchlistCubit.bindUser(currentUser.uid);
-      _communityCubit.bindUser(uid: currentUser.uid, email: currentUser.email);
+      _communityCubit.bindUser(
+        uid: currentUser.uid,
+        email: currentUser.email,
+        displayName: currentUser.displayName,
+      );
     }
   }
 
@@ -71,12 +75,15 @@ class _CineListAppState extends State<CineListApp> {
       ],
       child: BlocListener<AuthCubit, AuthState>(
         listenWhen: (prev, curr) =>
-            prev.status != curr.status || prev.user?.uid != curr.user?.uid,
+            prev.status != curr.status ||
+            prev.user?.uid != curr.user?.uid ||
+            prev.user?.displayName != curr.user?.displayName,
         listener: (context, state) {
           _watchlistCubit.bindUser(state.user?.uid);
           _communityCubit.bindUser(
             uid: state.user?.uid,
             email: state.user?.email,
+            displayName: state.user?.displayName,
           );
         },
         child: MaterialApp.router(

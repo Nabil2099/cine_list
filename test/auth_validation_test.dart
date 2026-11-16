@@ -21,5 +21,14 @@ void main() {
       expect(AuthCubit.validatePassword('123456'), isNull);
       expect(AuthCubit.validatePassword('securePass!'), isNull);
     });
+
+    test('validateDisplayName enforces non-empty, min 2, and max 40 chars', () {
+      expect(AuthCubit.validateDisplayName(''), isNotNull);
+      expect(AuthCubit.validateDisplayName(' '), isNotNull);
+      expect(AuthCubit.validateDisplayName('A'), isNotNull);
+      expect(AuthCubit.validateDisplayName('A' * 41), isNotNull);
+      expect(AuthCubit.validateDisplayName('Yami'), isNull);
+      expect(AuthCubit.validateDisplayName('  Alex Smith  '), isNull);
+    });
   });
 }

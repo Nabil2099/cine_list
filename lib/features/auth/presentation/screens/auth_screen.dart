@@ -21,12 +21,14 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _displayNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
   @override
   void dispose() {
+    _displayNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -38,6 +40,7 @@ class _AuthScreenState extends State<AuthScreen> {
     context.read<AuthCubit>().submit(
       email: _emailController.text,
       password: _passwordController.text,
+      displayName: _displayNameController.text,
     );
   }
 
@@ -211,6 +214,17 @@ class _AuthScreenState extends State<AuthScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 28),
+                                if (isRegister) ...[
+                                  CustomTextField(
+                                    controller: _displayNameController,
+                                    hintText: 'Display Name',
+                                    prefixIcon: Icons.person_outline_rounded,
+                                    textInputAction: TextInputAction.next,
+                                    autofillHints: const [AutofillHints.name],
+                                    validator: AuthCubit.validateDisplayName,
+                                  ),
+                                  const SizedBox(height: 14),
+                                ],
                                 CustomTextField(
                                   controller: _emailController,
                                   hintText: 'Email',

@@ -40,6 +40,20 @@ class AuthCubit extends Cubit<AuthState> {
     return null;
   }
 
+  static String? validateDisplayName(String? value) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return 'Display name is required.';
+    }
+    if (trimmed.length < 2) {
+      return 'Display name must be at least 2 characters.';
+    }
+    if (trimmed.length > 40) {
+      return 'Display name must be 40 characters or fewer.';
+    }
+    return null;
+  }
+
   static String? validatePassword(String? value) {
     final raw = value ?? '';
     if (raw.isEmpty) {
@@ -86,7 +100,11 @@ class AuthCubit extends Cubit<AuthState> {
     emit(state.copyWith(clearError: true, clearInfo: true));
   }
 
-  Future<void> submit({required String email, required String password}) async {
+  Future<void> submit({
+    required String email,
+    required String password,
+    String displayName = '',
+  }) async {
     emit(state.copyWith(isLoading: true, clearError: true, clearInfo: true));
 
     try {
@@ -94,6 +112,7 @@ class AuthCubit extends Cubit<AuthState> {
           ? await _authRepository.registerWithEmail(
               email: email,
               password: password,
+              displayName: displayName,
             )
           : await _authRepository.signInWithEmail(
               email: email,

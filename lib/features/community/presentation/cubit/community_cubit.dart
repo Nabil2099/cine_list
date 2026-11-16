@@ -20,15 +20,32 @@ class CommunityCubit extends Cubit<CommunityState> {
   String? _currentUid;
   String? _fallbackName;
 
-  void bindUser({required String? uid, String? email}) {
-    if (uid == _currentUid && _reviewsSub != null) return;
+  void bindUser({required String? uid, String? email, String? displayName}) {
+    final resolvedName = (displayName != null && displayName.trim().isNotEmpty)
+        ? displayName.trim()
+        : Formatters.greetingName(email);
+
+    if (uid == _currentUid && _reviewsSub != null) {
+      if (resolvedName != _fallbackName && resolvedName.isNotEmpty) {
+        _fallbackName = resolvedName;
+        final currentProfile = state.profile;
+        if (currentProfile != null && currentProfile.bio.isEmpty) {
+          emit(
+            state.copyWith(
+              profile: currentProfile.copyWith(displayName: resolvedName),
+            ),
+          );
+        }
+      }
+      return;
+    }
 
     _profileSub?.cancel();
     _reviewsSub?.cancel();
     _profileSub = null;
     _reviewsSub = null;
     _currentUid = uid;
-    _fallbackName = Formatters.greetingName(email);
+    _fallbackName = resolvedName;
 
     if (uid == null) {
       emit(const CommunityState(status: CommunityStatus.loaded));

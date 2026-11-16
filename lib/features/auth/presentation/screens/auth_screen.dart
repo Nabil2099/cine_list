@@ -11,7 +11,9 @@ import '../widgets/auth_backdrop.dart';
 
 /// Unified Login & Register screen matching the CineList reference design.
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+  const AuthScreen({super.key, this.onBackToLanding});
+
+  final VoidCallback? onBackToLanding;
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -129,6 +131,20 @@ class _AuthScreenState extends State<AuthScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
+                                if (widget.onBackToLanding != null) ...[
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: TextButton.icon(
+                                      onPressed: widget.onBackToLanding,
+                                      icon: const Icon(
+                                        Icons.arrow_back_rounded,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Back to Overview'),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                ],
                                 // Brand emblem
                                 Container(
                                   width: 60,

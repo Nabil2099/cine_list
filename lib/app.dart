@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -15,6 +16,7 @@ import 'features/auth/presentation/screens/auth_screen.dart';
 import 'features/community/presentation/cubit/community_cubit.dart';
 import 'features/discover/presentation/cubit/discover_cubit.dart';
 import 'features/discover/presentation/cubit/discover_state.dart';
+import 'features/landing/presentation/screens/web_landing_screen.dart';
 import 'features/watchlist/presentation/cubit/watchlist_cubit.dart';
 
 /// Root CineList widget wiring global Cubits and auth-gated navigation.
@@ -55,6 +57,7 @@ class _AuthGateState extends State<_AuthGate> {
   Timer? _maxWaitTimer;
   bool _minDurationElapsed = false;
   bool _maxWaitElapsed = false;
+  bool _showWebAuth = false;
 
   @override
   void initState() {
@@ -111,6 +114,9 @@ class _AuthGateState extends State<_AuthGate> {
         } else if (state.status == AuthStatus.authenticated) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!context.mounted) return;
+            if (_showWebAuth) {
+              setState(() => _showWebAuth = false);
+            }
             context.read<WatchlistCubit>().bindUser(state.user?.uid);
             context.read<CommunityCubit>().bindUser(
               uid: state.user?.uid,
@@ -118,8 +124,31 @@ class _AuthGateState extends State<_AuthGate> {
             );
           });
           child = const AppShell(key: ValueKey('shell'));
+        } else if (kIsWeb && !_showWebAuth) {
+          child = WebLandingScreen(
+            key: const ValueKey('web-landing'),
+            onSignIn: () {
+              final authCubit = context.read<AuthCubit>();
+              if (authCubit.state.isRegisterMode) {
+                authCubit.toggleMode();
+              }
+              setState(() => _showWebAuth = true);
+            },
+            onGetStarted: () {
+              final authCubit = context.read<AuthCubit>();
+              if (!authCubit.state.isRegisterMode) {
+                authCubit.toggleMode();
+              }
+              setState(() => _showWebAuth = true);
+            },
+          );
         } else {
-          child = const AuthScreen(key: ValueKey('auth'));
+          child = AuthScreen(
+            key: const ValueKey('auth'),
+            onBackToLanding: kIsWeb
+                ? () => setState(() => _showWebAuth = false)
+                : null,
+          );
         }
 
         return AnimatedSwitcher(

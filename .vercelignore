@@ -1,0 +1,7 @@
+*
+!vercel.json
+!build/
+build/*
+!build/web/
+!build/web/**
+build/web/.env.local

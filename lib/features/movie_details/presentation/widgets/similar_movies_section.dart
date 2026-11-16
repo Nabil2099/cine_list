@@ -33,12 +33,11 @@ class SimilarMoviesSection extends StatelessWidget {
                 width: 132,
                 heroTag: heroTag,
                 onTap: () {
-                  Navigator.of(context).push(
-                    MovieDetailsRoute.build(
-                      movieId: movie.id,
-                      initialMovie: movie,
-                      heroTag: heroTag,
-                    ),
+                  MovieDetailsRoute.push(
+                    context,
+                    movieId: movie.id,
+                    initialMovie: movie,
+                    heroTag: heroTag,
                   );
                 },
               );

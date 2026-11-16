@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/api_constants.dart';
@@ -271,7 +272,9 @@ class _DetailsContent extends StatelessWidget {
                         _CircleIconButton(
                           icon: Icons.arrow_back_ios_new_rounded,
                           tooltip: 'Back',
-                          onTap: () => Navigator.of(context).pop(),
+                          onTap: () => context.canPop()
+                              ? context.pop()
+                              : context.go('/discover'),
                         ),
                         Row(
                           mainAxisSize: MainAxisSize.min,

@@ -1,49 +1,42 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../features/ai_chat/presentation/screens/ai_chat_screen.dart';
-import '../../features/community/presentation/screens/community_screen.dart';
-import '../../features/discover/presentation/screens/discover_screen.dart';
-import '../../features/watchlist/presentation/screens/watchlist_screen.dart';
+import '../constants/app_constants.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_bottom_nav_bar.dart';
 import '../widgets/web_side_nav_bar.dart';
 
-/// Main authenticated shell using a sidebar on Web and bottom nav bar on mobile.
-class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+/// Main authenticated shell using a sidebar on wide Web viewports and the
+/// standard bottom navigation bar on mobile apps and mobile web browsers.
+class AppShell extends StatelessWidget {
+  const AppShell({super.key, required this.navigationShell});
 
-  @override
-  State<AppShell> createState() => _AppShellState();
-}
-
-class _AppShellState extends State<AppShell> {
-  int _currentIndex = 0;
+  final StatefulNavigationShell navigationShell;
 
   void _selectTab(int index) {
-    if (index == _currentIndex) return;
-    setState(() => _currentIndex = index);
+    navigationShell.goBranch(
+      index,
+      initialLocation: index == navigationShell.currentIndex,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final pages = IndexedStack(
-      index: _currentIndex,
-      children: [
-        const DiscoverScreen(),
-        WatchlistScreen(onExploreMovies: () => _selectTab(0)),
-        const AiChatScreen(),
-        const CommunityScreen(),
-      ],
-    );
+    final isWideWeb =
+        kIsWeb &&
+        MediaQuery.sizeOf(context).width >= AppConstants.tabletBreakpoint;
 
-    if (kIsWeb) {
+    if (isWideWeb) {
       return Scaffold(
         backgroundColor: AppColors.black,
         body: Row(
           children: [
-            WebSideNavBar(currentIndex: _currentIndex, onTap: _selectTab),
-            Expanded(child: pages),
+            WebSideNavBar(
+              currentIndex: navigationShell.currentIndex,
+              onTap: _selectTab,
+            ),
+            Expanded(child: navigationShell),
           ],
         ),
       );
@@ -51,9 +44,9 @@ class _AppShellState extends State<AppShell> {
 
     return Scaffold(
       backgroundColor: AppColors.black,
-      body: pages,
+      body: navigationShell,
       bottomNavigationBar: AppBottomNavigationBar(
-        currentIndex: _currentIndex,
+        currentIndex: navigationShell.currentIndex,
         onTap: _selectTab,
       ),
     );

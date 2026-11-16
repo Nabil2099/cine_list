@@ -42,14 +42,13 @@ class CommunityScreen extends StatelessWidget {
   }
 
   void _openMovie(BuildContext context, MovieReviewModel review) {
-    Navigator.of(context).push(
-      MovieDetailsRoute.build(
-        movieId: review.movieId,
-        initialMovie: MovieSummary(
-          id: review.movieId,
-          title: review.movieTitle,
-          posterPath: review.posterPath,
-        ),
+    MovieDetailsRoute.push(
+      context,
+      movieId: review.movieId,
+      initialMovie: MovieSummary(
+        id: review.movieId,
+        title: review.movieTitle,
+        posterPath: review.posterPath,
       ),
     );
   }

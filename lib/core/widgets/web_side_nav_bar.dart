@@ -211,4 +211,3 @@ class WebSideNavBar extends StatelessWidget {
     );
   }
 }
-

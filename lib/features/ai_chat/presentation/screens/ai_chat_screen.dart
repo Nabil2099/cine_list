@@ -131,9 +131,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         }
       }
 
-      Navigator.of(
-        context,
-      ).push(MovieDetailsRoute.build(movieId: match.id, initialMovie: match));
+      MovieDetailsRoute.push(context, movieId: match.id, initialMovie: match);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -1,24 +1,55 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../features/movie_details/presentation/screens/movie_details_screen.dart';
 import '../../shared/models/movie_summary.dart';
 
-/// Cinematic fade + subtle slide transition for opening Movie Details.
+/// Optional route extras passed when navigating to Movie Details.
+class MovieDetailsExtra {
+  const MovieDetailsExtra({this.initialMovie, this.heroTag});
+
+  final MovieSummary? initialMovie;
+  final String? heroTag;
+}
+
+/// Cinematic fade + subtle slide transition for opening Movie Details via GoRouter.
 abstract final class MovieDetailsRoute {
-  static Route<void> build({
+  static String path(int movieId) => '/movie/$movieId';
+
+  static void push(
+    BuildContext context, {
     required int movieId,
     MovieSummary? initialMovie,
     String? heroTag,
   }) {
-    return PageRouteBuilder<void>(
+    context.push(
+      path(movieId),
+      extra: MovieDetailsExtra(initialMovie: initialMovie, heroTag: heroTag),
+    );
+  }
+
+  static CustomTransitionPage<void> buildPage(GoRouterState state) {
+    final movieId = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+    final extra = state.extra;
+    MovieSummary? initialMovie;
+    String? heroTag;
+
+    if (extra is MovieDetailsExtra) {
+      initialMovie = extra.initialMovie;
+      heroTag = extra.heroTag;
+    } else if (extra is MovieSummary) {
+      initialMovie = extra;
+    }
+
+    return CustomTransitionPage<void>(
+      key: state.pageKey,
       transitionDuration: const Duration(milliseconds: 320),
       reverseTransitionDuration: const Duration(milliseconds: 260),
-      pageBuilder: (context, animation, secondaryAnimation) =>
-          MovieDetailsScreen(
-            movieId: movieId,
-            initialMovie: initialMovie,
-            heroTag: heroTag,
-          ),
+      child: MovieDetailsScreen(
+        movieId: movieId,
+        initialMovie: initialMovie,
+        heroTag: heroTag,
+      ),
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         final curved = CurvedAnimation(
           parent: animation,

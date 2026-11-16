@@ -39,12 +39,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   void _openMovieDetails(MovieSummary movie, {String? heroTag}) {
-    Navigator.of(context).push(
-      MovieDetailsRoute.build(
-        movieId: movie.id,
-        initialMovie: movie,
-        heroTag: heroTag,
-      ),
+    MovieDetailsRoute.push(
+      context,
+      movieId: movie.id,
+      initialMovie: movie,
+      heroTag: heroTag,
     );
   }
 

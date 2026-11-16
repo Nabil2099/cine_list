@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/di/injection_container.dart';
@@ -204,12 +205,11 @@ class _CastFilmographySheetState extends State<CastFilmographySheet> {
                             movie: movie,
                             width: 126,
                             onTap: () {
+                              final router = GoRouter.of(context);
                               Navigator.of(context).pop();
-                              Navigator.of(context).push(
-                                MovieDetailsRoute.build(
-                                  movieId: movie.id,
-                                  initialMovie: movie,
-                                ),
+                              router.push(
+                                MovieDetailsRoute.path(movie.id),
+                                extra: MovieDetailsExtra(initialMovie: movie),
                               );
                             },
                           );

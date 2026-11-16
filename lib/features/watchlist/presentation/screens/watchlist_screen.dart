@@ -112,12 +112,11 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
     WatchlistMovieModel movie,
     String heroTag,
   ) {
-    Navigator.of(context).push(
-      MovieDetailsRoute.build(
-        movieId: movie.movieId,
-        initialMovie: movie.toMovieSummary(),
-        heroTag: heroTag,
-      ),
+    MovieDetailsRoute.push(
+      context,
+      movieId: movie.movieId,
+      initialMovie: movie.toMovieSummary(),
+      heroTag: heroTag,
     );
   }
 

@@ -1,163 +1,91 @@
-import 'dart:async';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'core/constants/app_constants.dart';
 import 'core/di/injection_container.dart';
-import 'core/routing/app_shell.dart';
+import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
-import 'core/widgets/splash_screen.dart';
 import 'features/ai_chat/presentation/cubit/ai_chat_cubit.dart';
 import 'features/auth/presentation/cubit/auth_cubit.dart';
 import 'features/auth/presentation/cubit/auth_state.dart';
-import 'features/auth/presentation/screens/auth_screen.dart';
 import 'features/community/presentation/cubit/community_cubit.dart';
 import 'features/discover/presentation/cubit/discover_cubit.dart';
-import 'features/discover/presentation/cubit/discover_state.dart';
-import 'features/landing/presentation/screens/web_landing_screen.dart';
 import 'features/watchlist/presentation/cubit/watchlist_cubit.dart';
 
-/// Root CineList widget wiring global Cubits and auth-gated navigation.
-class CineListApp extends StatelessWidget {
+/// Root CineList widget wiring global Cubits and GoRouter navigation.
+class CineListApp extends StatefulWidget {
   const CineListApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider<AuthCubit>(create: (_) => sl<AuthCubit>()),
-        BlocProvider<DiscoverCubit>(
-          create: (_) => sl<DiscoverCubit>()..loadInitial(),
-        ),
-        BlocProvider<WatchlistCubit>(create: (_) => sl<WatchlistCubit>()),
-        BlocProvider<AiChatCubit>(create: (_) => sl<AiChatCubit>()),
-        BlocProvider<CommunityCubit>(create: (_) => sl<CommunityCubit>()),
-      ],
-      child: MaterialApp(
-        title: AppConstants.appName,
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.darkTheme,
-        home: const _AuthGate(),
-      ),
-    );
-  }
+  State<CineListApp> createState() => _CineListAppState();
 }
 
-class _AuthGate extends StatefulWidget {
-  const _AuthGate();
-
-  @override
-  State<_AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends State<_AuthGate> {
-  Timer? _minSplashTimer;
-  Timer? _maxWaitTimer;
-  bool _minDurationElapsed = false;
-  bool _maxWaitElapsed = false;
-  bool _showWebAuth = false;
+class _CineListAppState extends State<CineListApp> {
+  late final AuthCubit _authCubit;
+  late final DiscoverCubit _discoverCubit;
+  late final WatchlistCubit _watchlistCubit;
+  late final AiChatCubit _aiChatCubit;
+  late final CommunityCubit _communityCubit;
+  late final AppRouter _appRouter;
 
   @override
   void initState() {
     super.initState();
-    _minSplashTimer = Timer(const Duration(milliseconds: 1800), () {
-      if (mounted) {
-        setState(() => _minDurationElapsed = true);
-      }
-    });
-    _maxWaitTimer = Timer(const Duration(milliseconds: 4500), () {
-      if (mounted) {
-        setState(() => _maxWaitElapsed = true);
-      }
-    });
+    _authCubit = sl<AuthCubit>();
+    _discoverCubit = sl<DiscoverCubit>()..loadInitial();
+    _watchlistCubit = sl<WatchlistCubit>();
+    _aiChatCubit = sl<AiChatCubit>();
+    _communityCubit = sl<CommunityCubit>();
+    _appRouter = AppRouter(
+      authCubit: _authCubit,
+      discoverCubit: _discoverCubit,
+    );
+
+    final currentUser = _authCubit.state.user;
+    if (currentUser != null) {
+      _watchlistCubit.bindUser(currentUser.uid);
+      _communityCubit.bindUser(uid: currentUser.uid, email: currentUser.email);
+    }
   }
 
   @override
   void dispose() {
-    _minSplashTimer?.cancel();
-    _maxWaitTimer?.cancel();
+    _appRouter.dispose();
+    _authCubit.close();
+    _discoverCubit.close();
+    _watchlistCubit.close();
+    _aiChatCubit.close();
+    _communityCubit.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final discoverStatus = context.select<DiscoverCubit, DiscoverStatus>(
-      (cubit) => cubit.state.status,
-    );
-
-    return BlocConsumer<AuthCubit, AuthState>(
-      listenWhen: (prev, curr) =>
-          prev.status != curr.status || prev.user?.uid != curr.user?.uid,
-      listener: (context, state) {
-        context.read<WatchlistCubit>().bindUser(state.user?.uid);
-        context.read<CommunityCubit>().bindUser(
-          uid: state.user?.uid,
-          email: state.user?.email,
-        );
-      },
-      builder: (context, state) {
-        final isAuthResolved = state.status != AuthStatus.initial;
-        final isDiscoverReady =
-            state.status != AuthStatus.authenticated ||
-            (discoverStatus != DiscoverStatus.initial &&
-                discoverStatus != DiscoverStatus.loading);
-        final showSplash =
-            !isAuthResolved ||
-            !_minDurationElapsed ||
-            (!isDiscoverReady && !_maxWaitElapsed);
-
-        final Widget child;
-        if (showSplash) {
-          child = const AnimatedSplashScreen(key: ValueKey('splash'));
-        } else if (state.status == AuthStatus.authenticated) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!context.mounted) return;
-            if (_showWebAuth) {
-              setState(() => _showWebAuth = false);
-            }
-            context.read<WatchlistCubit>().bindUser(state.user?.uid);
-            context.read<CommunityCubit>().bindUser(
-              uid: state.user?.uid,
-              email: state.user?.email,
-            );
-          });
-          child = const AppShell(key: ValueKey('shell'));
-        } else if (kIsWeb && !_showWebAuth) {
-          child = WebLandingScreen(
-            key: const ValueKey('web-landing'),
-            onSignIn: () {
-              final authCubit = context.read<AuthCubit>();
-              if (authCubit.state.isRegisterMode) {
-                authCubit.toggleMode();
-              }
-              setState(() => _showWebAuth = true);
-            },
-            onGetStarted: () {
-              final authCubit = context.read<AuthCubit>();
-              if (!authCubit.state.isRegisterMode) {
-                authCubit.toggleMode();
-              }
-              setState(() => _showWebAuth = true);
-            },
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<AuthCubit>.value(value: _authCubit),
+        BlocProvider<DiscoverCubit>.value(value: _discoverCubit),
+        BlocProvider<WatchlistCubit>.value(value: _watchlistCubit),
+        BlocProvider<AiChatCubit>.value(value: _aiChatCubit),
+        BlocProvider<CommunityCubit>.value(value: _communityCubit),
+      ],
+      child: BlocListener<AuthCubit, AuthState>(
+        listenWhen: (prev, curr) =>
+            prev.status != curr.status || prev.user?.uid != curr.user?.uid,
+        listener: (context, state) {
+          _watchlistCubit.bindUser(state.user?.uid);
+          _communityCubit.bindUser(
+            uid: state.user?.uid,
+            email: state.user?.email,
           );
-        } else {
-          child = AuthScreen(
-            key: const ValueKey('auth'),
-            onBackToLanding: kIsWeb
-                ? () => setState(() => _showWebAuth = false)
-                : null,
-          );
-        }
-
-        return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 450),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeInCubic,
-          child: child,
-        );
-      },
+        },
+        child: MaterialApp.router(
+          title: AppConstants.appName,
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.darkTheme,
+          routerConfig: _appRouter.router,
+        ),
+      ),
     );
   }
 }

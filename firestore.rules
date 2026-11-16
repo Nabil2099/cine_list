@@ -1,0 +1,118 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isValidStatus(status) {
+      return status == 'want_to_watch' || status == 'watched';
+    }
+
+    function isValidWatchlistMovie(data, movieId) {
+      return data.keys().hasAll([
+          'movieId',
+          'title',
+          'voteAverage',
+          'status',
+          'addedAt'
+        ])
+        && data.movieId is int
+        && string(data.movieId) == movieId
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() <= 300
+        && data.voteAverage is number
+        && isValidStatus(data.status)
+        && data.addedAt is timestamp
+        && (!('watchedAt' in data) || data.watchedAt == null || data.watchedAt is timestamp)
+        && (!('posterPath' in data) || data.posterPath == null || data.posterPath is string)
+        && (!('backdropPath' in data) || data.backdropPath == null || data.backdropPath is string)
+        && (!('releaseDate' in data) || data.releaseDate == null || data.releaseDate is string)
+        && (!('userRating' in data) || data.userRating == null || (data.userRating is int && data.userRating >= 1 && data.userRating <= 5))
+        && (!('userNote' in data) || data.userNote == null || (data.userNote is string && data.userNote.size() <= 500))
+        && (!('runtimeMinutes' in data) || data.runtimeMinutes == null || data.runtimeMinutes is int);
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['displayName', 'bio', 'avatarKey', 'updatedAt'])
+        && data.displayName is string
+        && data.displayName.size() > 0
+        && data.displayName.size() <= 40
+        && data.bio is string
+        && data.bio.size() <= 200
+        && data.avatarKey is string
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidReview(data) {
+      return data.keys().hasAll([
+          'movieId',
+          'movieTitle',
+          'uid',
+          'authorName',
+          'authorAvatarKey',
+          'rating',
+          'comment',
+          'createdAt'
+        ])
+        && data.movieId is int
+        && data.movieTitle is string
+        && data.movieTitle.size() > 0
+        && data.uid == request.auth.uid
+        && data.authorName is string
+        && data.authorName.size() > 0
+        && data.authorAvatarKey is string
+        && data.rating is int
+        && data.rating >= 1
+        && data.rating <= 5
+        && data.comment is string
+        && data.comment.size() > 0
+        && data.comment.size() <= 600
+        && data.createdAt is timestamp;
+    }
+
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(uid) && isValidUserProfile(request.resource.data);
+
+      match /watchlist/{movieId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && isValidWatchlistMovie(request.resource.data, movieId);
+        allow delete: if isOwner(uid);
+      }
+
+      match /collections/{collectionId} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && request.resource.data.keys().hasAll(['name', 'movieIds', 'createdAt'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 40
+          && request.resource.data.movieIds is list
+          && request.resource.data.createdAt is timestamp;
+      }
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidReview(request.resource.data);
+      allow update: if isSignedIn() && (
+        isValidReview(request.resource.data)
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy'])
+      );
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // Deny all other document paths by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

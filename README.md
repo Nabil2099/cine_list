@@ -2,14 +2,16 @@
 
 **Discover. Save. Watch.**
 
-CineList is a dark-themed Flutter movie discovery, watchlist, AI recommendation, and community review app built with **Material 3**, **Cubit (`flutter_bloc`)**, **TMDB REST API (`dio`)**, **Google Gemini**, **Firebase Authentication**, **Cloud Firestore**, and **Hive**.
+**Live Web App:** [https://cine-list-mauve.vercel.app](https://cine-list-mauve.vercel.app)
+
+CineList is a dark-themed Flutter movie discovery, watchlist, AI recommendation, and community review app built with **Material 3**, **Cubit (`flutter_bloc`)**, **`go_router`**, **TMDB REST API (`dio`)**, **Google Gemini**, **Firebase Authentication**, **Cloud Firestore**, and **Hive**.
 
 ---
 
 ## Features
 
 ### Discover
-- Browse **Trending**, **Popular**, and **Top Rated** movies from TMDB.
+- Browse **Trending**, **Now Playing**, **Upcoming** (with release-date badges), **Popular**, and **Top Rated** movies from TMDB.
 - Filter instantly with **Genre Chips** (Action, Sci-Fi, Thriller, Comedy, Drama, and more).
 - Featured movie spotlight, horizontal poster carousel, and responsive grid layout.
 - **Quick-Save** bookmark button directly on movie cards to add or remove titles without leaving the feed.
@@ -17,14 +19,17 @@ CineList is a dark-themed Flutter movie discovery, watchlist, AI recommendation,
 
 ### Movie Details
 - High-resolution backdrop and poster artwork cached via `cached_network_image`.
-- Release year, runtime, TMDB score, genres, overview, and cast list.
+- Release year, runtime, TMDB score, genres, overview, and tappable **Cast** cards that open a **Filmography & Bio** modal.
 - **Trailers** and **Where to Watch** streaming/rent/buy provider badges powered by TMDB.
 - Horizontal **More Like This** recommendations row.
-- Real-time watchlist controls (**Want to Watch** / **Watched**) and **Community Reviews** with star ratings, helpful likes, and review composer.
+- One-tap **Share** button (`share_plus`) and real-time watchlist controls (**Want to Watch** / **Watched**).
+- **Community Reviews** with star ratings, helpful likes, sharing, and review composer.
 
 ### My Watchlist
 - Real-time Cloud Firestore sync scoped per user (`users/{uid}/watchlist/{tmdbMovieId}`).
-- **Watchlist Stats Card** showing total hours watched, favorite genre, and completion rate.
+- **Tonight's Pick** animated randomizer (**Surprise Me**) to pick a movie for movie night.
+- **Custom Collections** (`users/{uid}/collections/{collectionId}`) to organize saved films into themed lists.
+- **Watchlist Stats Card** showing total hours watched and completion rate.
 - Segmented **Want to Watch** and **Watched** tabs with live counts.
 - **Personal Ratings & Notes** (1–5 stars + short note) when marking a movie as **Watched**.
 - Local search filter and sorting by **Recently Added**, **Highest Rated**, or **Release Year**.
@@ -39,17 +44,17 @@ CineList is a dark-themed Flutter movie discovery, watchlist, AI recommendation,
 - Public movie reviews feed (`reviews/{reviewId}`) with star ratings, **Helpful** upvotes, and owner delete controls.
 - Tap any reviewer's name or avatar to view their profile modal.
 
-### Authentication & Preferences
+### Authentication, Web Experience & Splash
+- Animated cinematic splash screen while auth and initial feed load.
+- Web-only **Landing Page** (`/welcome`) showcasing all features before sign-in, plus **responsive navigation** (`WebSideNavBar` on desktop web, `AppBottomNavigationBar` on mobile apps and mobile web browsers).
 - Email/password sign-up, login, password reset, form validation, and persistent sessions via Firebase Auth.
 - Local Discover category persistence via **Hive**.
 
 ---
 
-## Screenshots
+## Live Demo
 
-| Discover | Movie Details | My Watchlist | CineList AI | Community |
-|---|---|---|---|---|
-| *Add screenshot* | *Add screenshot* | *Add screenshot* | *Add screenshot* | *Add screenshot* |
+Try CineList directly in your browser at **[https://cine-list-mauve.vercel.app](https://cine-list-mauve.vercel.app)** (deployed on Vercel with automatic CI/CD via GitHub Actions).
 
 ---
 
@@ -60,13 +65,15 @@ CineList is a dark-themed Flutter movie discovery, watchlist, AI recommendation,
 | **Flutter & Dart** | Cross-platform UI framework |
 | **Material 3** | Dark cinematic theme & components |
 | **`flutter_bloc` (Cubit)** | Predictable state management |
+| **`go_router`** | Declarative routing, deep links & shell branches |
 | **`dio`** | TMDB & Gemini HTTP client & error mapping |
 | **`firebase_auth`** | Email/password authentication |
-| **`cloud_firestore`** | Real-time watchlist, profiles & reviews |
+| **`cloud_firestore`** | Real-time watchlist, collections, profiles & reviews |
 | **`hive` / `hive_flutter`** | Lightweight local preferences |
 | **`cached_network_image`** | Image loading & caching |
 | **`get_it`** | Dependency injection |
 | **`equatable`** | Value equality for states & models |
+| **`share_plus`** | Native/Web sharing for movies & reviews |
 | **`url_launcher`** | Opening trailers & external links |
 
 ---
@@ -166,3 +173,16 @@ dart format .
 flutter analyze
 flutter test
 ```
+
+---
+
+## CI/CD Web Auto-Deploy
+
+Pushes to `main` automatically run `flutter analyze`, `flutter test`, `flutter build web --release`, and deploy to Vercel via [.github/workflows/deploy-web.yml](.github/workflows/deploy-web.yml).
+
+Required GitHub repository secrets (**Settings → Secrets and variables → Actions**):
+- `TMDB_API_KEY`
+- `GEMINI_API_KEY`
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`

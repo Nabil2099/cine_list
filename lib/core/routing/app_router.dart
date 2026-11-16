@@ -13,6 +13,7 @@ import '../../features/discover/presentation/cubit/discover_cubit.dart';
 import '../../features/discover/presentation/cubit/discover_state.dart';
 import '../../features/discover/presentation/screens/discover_screen.dart';
 import '../../features/landing/presentation/screens/web_landing_screen.dart';
+import '../../features/match_room/presentation/screens/match_room_screen.dart';
 import '../../features/watchlist/presentation/screens/watchlist_screen.dart';
 import '../widgets/splash_screen.dart';
 import 'app_shell.dart';
@@ -47,6 +48,7 @@ class AppRouter {
 
   bool _minDurationElapsed = false;
   bool _maxWaitElapsed = false;
+  String? _pendingMatchPath;
 
   late final GoRouter router = GoRouter(
     initialLocation: '/splash',
@@ -54,6 +56,12 @@ class AppRouter {
     redirect: (context, state) {
       final authStatus = authCubit.state.status;
       final discoverStatus = discoverCubit.state.status;
+      final location = state.matchedLocation;
+
+      if (location.startsWith('/match') &&
+          authStatus != AuthStatus.authenticated) {
+        _pendingMatchPath = state.uri.toString();
+      }
 
       final isAuthResolved = authStatus != AuthStatus.initial;
       final isDiscoverReady =
@@ -65,13 +73,16 @@ class AppRouter {
           !_minDurationElapsed ||
           (!isDiscoverReady && !_maxWaitElapsed);
 
-      final location = state.matchedLocation;
-
       if (showSplash) {
         return location == '/splash' ? null : '/splash';
       }
 
       if (authStatus == AuthStatus.authenticated) {
+        if (_pendingMatchPath != null) {
+          final target = _pendingMatchPath!;
+          _pendingMatchPath = null;
+          return target;
+        }
         if (location == '/' ||
             location == '/splash' ||
             location == '/welcome' ||
@@ -169,6 +180,15 @@ class AppRouter {
       GoRoute(
         path: '/movie/:id',
         pageBuilder: (context, state) => MovieDetailsRoute.buildPage(state),
+      ),
+      GoRoute(
+        path: '/match',
+        builder: (context, state) => const MatchRoomScreen(),
+      ),
+      GoRoute(
+        path: '/match/:code',
+        builder: (context, state) =>
+            MatchRoomScreen(initialCode: state.pathParameters['code']),
       ),
     ],
   );

@@ -12,6 +12,8 @@ abstract final class AppConstants {
   static const String usersCollection = 'users';
   static const String watchlistCollection = 'watchlist';
   static const String collectionsCollection = 'collections';
+  static const String matchRoomsCollection = 'match_rooms';
+  static const String webAppBaseUrl = 'https://cine-list-mauve.vercel.app';
 
   // Watchlist statuses
   static const String statusWantToWatch = 'want_to_watch';

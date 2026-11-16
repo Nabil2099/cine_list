@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/routing/movie_details_route.dart';
@@ -178,64 +179,6 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
                                 ],
                               ),
                             ),
-                            if (state.wantToWatchMovies.isNotEmpty ||
-                                activeMovies.isNotEmpty) ...[
-                              InkWell(
-                                onTap: () {
-                                  final candidates =
-                                      state.wantToWatchMovies.isNotEmpty
-                                      ? state.wantToWatchMovies
-                                      : activeMovies;
-                                  TonightsPickDialog.show(
-                                    context,
-                                    candidates: candidates,
-                                    onOpenDetails: (picked) => _openDetails(
-                                      context,
-                                      picked,
-                                      'pick-${picked.movieId}',
-                                    ),
-                                  );
-                                },
-                                borderRadius: BorderRadius.circular(14),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 7,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.pacificBlue.withValues(
-                                      alpha: 0.14,
-                                    ),
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                      color: AppColors.pacificBlue.withValues(
-                                        alpha: 0.45,
-                                      ),
-                                    ),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.casino_rounded,
-                                        size: 17,
-                                        color: AppColors.pacificBlue,
-                                      ),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'Surprise Me',
-                                        style: TextStyle(
-                                          color: AppColors.pacificBlue,
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                            ],
                             PopupMenuButton<WatchlistSortOption>(
                               tooltip: 'Sort watchlist',
                               color: AppColors.surfaceElevated,
@@ -309,6 +252,89 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
                             averagePersonalRating: state.averagePersonalRating,
                           ),
                         ],
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => context.push('/match'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.softPeriwinkle,
+                                  backgroundColor: AppColors.softPeriwinkle
+                                      .withValues(alpha: 0.12),
+                                  side: BorderSide(
+                                    color: AppColors.softPeriwinkle.withValues(
+                                      alpha: 0.45,
+                                    ),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.local_fire_department_rounded,
+                                  size: 18,
+                                ),
+                                label: const Text(
+                                  'Match Night',
+                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ),
+                            if (state.wantToWatchMovies.isNotEmpty ||
+                                activeMovies.isNotEmpty) ...[
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    final candidates =
+                                        state.wantToWatchMovies.isNotEmpty
+                                        ? state.wantToWatchMovies
+                                        : activeMovies;
+                                    TonightsPickDialog.show(
+                                      context,
+                                      candidates: candidates,
+                                      onOpenDetails: (picked) => _openDetails(
+                                        context,
+                                        picked,
+                                        'pick-${picked.movieId}',
+                                      ),
+                                    );
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.pacificBlue,
+                                    backgroundColor: AppColors.pacificBlue
+                                        .withValues(alpha: 0.12),
+                                    side: BorderSide(
+                                      color: AppColors.pacificBlue.withValues(
+                                        alpha: 0.45,
+                                      ),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 10,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.casino_rounded,
+                                    size: 18,
+                                  ),
+                                  label: const Text(
+                                    'Surprise Me',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                         const SizedBox(height: 12),
                         WatchlistTabs(
                           selectedTab: state.selectedTab,

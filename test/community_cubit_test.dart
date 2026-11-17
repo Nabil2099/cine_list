@@ -1,5 +1,6 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:cine_list/features/community/data/models/movie_review_model.dart';
+import 'package:cine_list/features/community/data/models/review_report_model.dart';
 import 'package:cine_list/features/community/data/models/user_profile_model.dart';
 import 'package:cine_list/features/community/data/repositories/community_repository.dart';
 import 'package:cine_list/features/community/presentation/cubit/community_cubit.dart';
@@ -36,10 +37,25 @@ void main() {
   setUpAll(() {
     registerFallbackValue(sampleProfile);
     registerFallbackValue(sampleReview);
+    registerFallbackValue(
+      ReviewReportModel(
+        id: '157336_uid-1_uid-2',
+        reviewId: '157336_uid-1',
+        reportedUid: 'uid-1',
+        reportedAuthorName: 'Yami',
+        movieTitle: 'Interstellar',
+        reviewComment: 'Test',
+        reporterUid: 'uid-2',
+        reason: ReportReason.hateSpeech,
+        createdAt: DateTime(2026, 1, 1),
+      ),
+    );
   });
 
   setUp(() {
     repository = MockCommunityRepository();
+    when(() => repository.isAdmin(any())).thenAnswer((_) async => false);
+    when(() => repository.isUserBanned(any())).thenAnswer((_) async => false);
   });
 
   group('CommunityCubit', () {
@@ -158,5 +174,65 @@ void main() {
       verify(() => repository.getProfile('uid-2')).called(1);
       await cubit.close();
     });
+
+    blocTest<CommunityCubit, CommunityState>(
+      'toggleDislike forwards current dislike status to repository',
+      build: () {
+        when(() => repository.watchProfile('uid-1'))
+            .thenAnswer((_) => Stream.value(sampleProfile));
+        when(() => repository.watchRecentReviews())
+            .thenAnswer((_) => Stream.value([sampleReview]));
+        when(
+          () => repository.toggleReviewDislike(
+            reviewId: '157336_uid-1',
+            uid: 'uid-1',
+            currentlyDisliked: false,
+          ),
+        ).thenAnswer((_) async {});
+        return CommunityCubit(repository);
+      },
+      act: (cubit) async {
+        cubit.bindUser(uid: 'uid-1', email: 'yami@cinelist.app');
+        await Future<void>.delayed(Duration.zero);
+        await cubit.toggleDislike(sampleReview);
+      },
+      verify: (_) {
+        verify(
+          () => repository.toggleReviewDislike(
+            reviewId: '157336_uid-1',
+            uid: 'uid-1',
+            currentlyDisliked: false,
+          ),
+        ).called(1);
+      },
+    );
+
+    blocTest<CommunityCubit, CommunityState>(
+      'reportReview submits safety report and emits feedback',
+      build: () {
+        when(() => repository.watchProfile('uid-1'))
+            .thenAnswer((_) => Stream.value(sampleProfile));
+        when(() => repository.watchRecentReviews())
+            .thenAnswer((_) => Stream.value([sampleReview]));
+        when(() => repository.submitReport(any())).thenAnswer((_) async {});
+        return CommunityCubit(repository);
+      },
+      act: (cubit) async {
+        cubit.bindUser(uid: 'uid-1', email: 'yami@cinelist.app');
+        await Future<void>.delayed(Duration.zero);
+        await cubit.reportReview(
+          review: sampleReview,
+          reason: ReportReason.childAbuse,
+          details: 'Inappropriate content',
+        );
+      },
+      verify: (cubit) {
+        verify(() => repository.submitReport(any())).called(1);
+        expect(
+          cubit.state.feedbackMessage,
+          'Report submitted. Thank you for keeping CineList safe.',
+        );
+      },
+    );
   });
 }

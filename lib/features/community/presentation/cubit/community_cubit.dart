@@ -6,6 +6,7 @@ import '../../../../core/error/app_exception.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../shared/models/movie_summary.dart';
 import '../../data/models/movie_review_model.dart';
+import '../../data/models/review_report_model.dart';
 import '../../data/models/user_profile_model.dart';
 import '../../data/repositories/community_repository.dart';
 import 'community_state.dart';
@@ -68,6 +69,16 @@ class CommunityCubit extends Cubit<CommunityState> {
       if (profile != null) {
         emit(state.copyWith(profile: profile));
       }
+    });
+
+    Future<void>(() async {
+      try {
+        final admin = await _repository.isAdmin(uid);
+        final banned = await _repository.isUserBanned(uid);
+        if (!isClosed && _currentUid == uid) {
+          emit(state.copyWith(isAdmin: admin, isBanned: banned));
+        }
+      } catch (_) {}
     });
 
     _reviewsSub = _repository.watchRecentReviews().listen(
@@ -178,6 +189,52 @@ class CommunityCubit extends Cubit<CommunityState> {
         reviewId: review.id,
         uid: uid,
         currentlyLiked: review.isLikedBy(uid),
+      );
+    } on AppException catch (e) {
+      emit(state.copyWith(errorMessage: e.message));
+    }
+  }
+
+  Future<void> toggleDislike(MovieReviewModel review) async {
+    final uid = _currentUid;
+    if (uid == null) return;
+    try {
+      await _repository.toggleReviewDislike(
+        reviewId: review.id,
+        uid: uid,
+        currentlyDisliked: review.isDislikedBy(uid),
+      );
+    } on AppException catch (e) {
+      emit(state.copyWith(errorMessage: e.message));
+    }
+  }
+
+  Future<void> reportReview({
+    required MovieReviewModel review,
+    required ReportReason reason,
+    String details = '',
+  }) async {
+    final uid = _currentUid;
+    if (uid == null) return;
+    try {
+      final report = ReviewReportModel(
+        id: ReviewReportModel.docIdFor(review.id, uid),
+        reviewId: review.id,
+        reportedUid: review.uid,
+        reportedAuthorName: review.authorName,
+        movieTitle: review.movieTitle,
+        reviewComment: review.comment,
+        reporterUid: uid,
+        reason: reason,
+        details: details,
+        createdAt: DateTime.now(),
+      );
+      await _repository.submitReport(report);
+      emit(
+        state.copyWith(
+          feedbackMessage: 'Report submitted. Thank you for keeping CineList safe.',
+          clearError: true,
+        ),
       );
     } on AppException catch (e) {
       emit(state.copyWith(errorMessage: e.message));

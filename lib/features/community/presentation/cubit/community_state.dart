@@ -10,6 +10,8 @@ class CommunityState extends Equatable {
     this.status = CommunityStatus.initial,
     this.profile,
     this.reviews = const [],
+    this.isAdmin = false,
+    this.isBanned = false,
     this.isSubmitting = false,
     this.errorMessage,
     this.feedbackMessage,
@@ -18,6 +20,8 @@ class CommunityState extends Equatable {
   final CommunityStatus status;
   final UserProfileModel? profile;
   final List<MovieReviewModel> reviews;
+  final bool isAdmin;
+  final bool isBanned;
   final bool isSubmitting;
   final String? errorMessage;
   final String? feedbackMessage;
@@ -31,6 +35,8 @@ class CommunityState extends Equatable {
     UserProfileModel? profile,
     bool clearProfile = false,
     List<MovieReviewModel>? reviews,
+    bool? isAdmin,
+    bool? isBanned,
     bool? isSubmitting,
     String? errorMessage,
     bool clearError = false,
@@ -41,6 +47,8 @@ class CommunityState extends Equatable {
       status: status ?? this.status,
       profile: clearProfile ? null : (profile ?? this.profile),
       reviews: reviews ?? this.reviews,
+      isAdmin: isAdmin ?? this.isAdmin,
+      isBanned: isBanned ?? this.isBanned,
       isSubmitting: isSubmitting ?? this.isSubmitting,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       feedbackMessage: clearFeedback
@@ -54,6 +62,8 @@ class CommunityState extends Equatable {
     status,
     profile,
     reviews,
+    isAdmin,
+    isBanned,
     isSubmitting,
     errorMessage,
     feedbackMessage,

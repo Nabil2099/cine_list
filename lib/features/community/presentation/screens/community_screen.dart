@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/app_constants.dart';
@@ -16,6 +17,7 @@ import '../cubit/community_cubit.dart';
 import '../cubit/community_state.dart';
 import '../widgets/community_review_card.dart';
 import '../widgets/edit_profile_dialog.dart';
+import '../widgets/report_review_dialog.dart';
 import '../widgets/user_avatar_widget.dart';
 import '../widgets/user_profile_dialog.dart';
 
@@ -97,9 +99,34 @@ class CommunityScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Community',
-                            style: Theme.of(context).textTheme.headlineMedium,
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Community',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineMedium,
+                                ),
+                              ),
+                              if (state.isAdmin)
+                                OutlinedButton.icon(
+                                  onPressed: () => context.push('/admin'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.khakiBeige,
+                                    side: BorderSide(
+                                      color: AppColors.khakiBeige.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.admin_panel_settings_outlined,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Admin'),
+                                ),
+                            ],
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -167,6 +194,7 @@ class CommunityScreen extends StatelessWidget {
                             review: review,
                             isOwner: review.uid == currentUid,
                             isLiked: review.isLikedBy(currentUid),
+                            isDisliked: review.isDislikedBy(currentUid),
                             onMovieTap: () => _openMovie(context, review),
                             onAuthorTap: () => UserProfileDialog.show(
                               context,
@@ -177,6 +205,24 @@ class CommunityScreen extends StatelessWidget {
                             onToggleLike: () => context
                                 .read<CommunityCubit>()
                                 .toggleLike(review),
+                            onToggleDislike: () => context
+                                .read<CommunityCubit>()
+                                .toggleDislike(review),
+                            onReport: () async {
+                              final res = await ReportReviewDialog.show(
+                                context,
+                                authorName: review.authorName,
+                              );
+                              if (res != null && context.mounted) {
+                                await context
+                                    .read<CommunityCubit>()
+                                    .reportReview(
+                                      review: review,
+                                      reason: res.reason,
+                                      details: res.details,
+                                    );
+                              }
+                            },
                             onShare: () => SharePlus.instance.share(
                               ShareParams(
                                 text:

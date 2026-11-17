@@ -1,5 +1,16 @@
+import 'dart:async';
+
+import 'package:bloc_test/bloc_test.dart';
+import 'package:cine_list/features/auth/data/repositories/auth_repository.dart';
 import 'package:cine_list/features/auth/presentation/cubit/auth_cubit.dart';
+import 'package:cine_list/features/auth/presentation/cubit/auth_state.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockAuthRepository extends Mock implements AuthRepository {}
+
+class MockUser extends Mock implements User {}
 
 void main() {
   group('Auth Form Validation', () {
@@ -30,5 +41,74 @@ void main() {
       expect(AuthCubit.validateDisplayName('Yami'), isNull);
       expect(AuthCubit.validateDisplayName('  Alex Smith  '), isNull);
     });
+  });
+
+  group('AuthCubit Email Verification', () {
+    late MockAuthRepository repository;
+    late StreamController<User?> authController;
+    late MockUser unverifiedUser;
+    late MockUser verifiedUser;
+
+    setUp(() {
+      repository = MockAuthRepository();
+      authController = StreamController<User?>.broadcast();
+      unverifiedUser = MockUser();
+      verifiedUser = MockUser();
+
+      when(() => unverifiedUser.uid).thenReturn('uid-1');
+      when(() => unverifiedUser.email).thenReturn('yami@cinelist.app');
+      when(() => unverifiedUser.displayName).thenReturn('Yami');
+      when(() => unverifiedUser.emailVerified).thenReturn(false);
+
+      when(() => verifiedUser.uid).thenReturn('uid-1');
+      when(() => verifiedUser.email).thenReturn('yami@cinelist.app');
+      when(() => verifiedUser.displayName).thenReturn('Yami');
+      when(() => verifiedUser.emailVerified).thenReturn(true);
+
+      when(() => repository.authStateChanges)
+          .thenAnswer((_) => authController.stream);
+    });
+
+    tearDown(() async {
+      await authController.close();
+    });
+
+    blocTest<AuthCubit, AuthState>(
+      'emits unverified when user email is not verified and transitions to authenticated after reload',
+      build: () {
+        when(() => repository.reloadCurrentUser())
+            .thenAnswer((_) async => verifiedUser);
+        return AuthCubit(repository);
+      },
+      act: (cubit) async {
+        authController.add(unverifiedUser);
+        await Future<void>.delayed(Duration.zero);
+        await cubit.checkEmailVerification();
+      },
+      verify: (cubit) {
+        expect(cubit.state.status, AuthStatus.authenticated);
+        verify(() => repository.reloadCurrentUser()).called(1);
+      },
+    );
+
+    blocTest<AuthCubit, AuthState>(
+      'resendVerificationEmail calls repository and emits infoMessage',
+      build: () {
+        when(() => repository.sendEmailVerification()).thenAnswer((_) async {});
+        return AuthCubit(repository);
+      },
+      act: (cubit) async {
+        authController.add(unverifiedUser);
+        await Future<void>.delayed(Duration.zero);
+        await cubit.resendVerificationEmail();
+      },
+      verify: (cubit) {
+        verify(() => repository.sendEmailVerification()).called(1);
+        expect(
+          cubit.state.infoMessage,
+          'Verification link resent to yami@cinelist.app.',
+        );
+      },
+    );
   });
 }

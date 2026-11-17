@@ -15,12 +15,17 @@ class MovieReviewModel extends Equatable {
     required this.comment,
     required this.createdAt,
     this.likedBy = const [],
+    this.dislikedBy = const [],
   });
 
   factory MovieReviewModel.fromMap(String id, Map<String, dynamic> map) {
     final rawLikes = map['likedBy'];
     final likedBy = rawLikes is List
         ? rawLikes.whereType<String>().toList()
+        : const <String>[];
+    final rawDislikes = map['dislikedBy'];
+    final dislikedBy = rawDislikes is List
+        ? rawDislikes.whereType<String>().toList()
         : const <String>[];
 
     return MovieReviewModel(
@@ -35,6 +40,7 @@ class MovieReviewModel extends Equatable {
       comment: (map['comment'] as String?) ?? '',
       createdAt: _parseTimestamp(map['createdAt']) ?? DateTime.now(),
       likedBy: likedBy,
+      dislikedBy: dislikedBy,
     );
   }
 
@@ -49,8 +55,10 @@ class MovieReviewModel extends Equatable {
   final String comment;
   final DateTime createdAt;
   final List<String> likedBy;
+  final List<String> dislikedBy;
 
   bool isLikedBy(String? uid) => uid != null && likedBy.contains(uid);
+  bool isDislikedBy(String? uid) => uid != null && dislikedBy.contains(uid);
 
   static String docIdFor(int movieId, String uid) => '${movieId}_$uid';
 
@@ -66,6 +74,7 @@ class MovieReviewModel extends Equatable {
       'comment': comment.trim(),
       'createdAt': Timestamp.fromDate(createdAt),
       'likedBy': likedBy,
+      'dislikedBy': dislikedBy,
     };
   }
 
@@ -88,5 +97,6 @@ class MovieReviewModel extends Equatable {
     comment,
     createdAt,
     likedBy,
+    dislikedBy,
   ];
 }

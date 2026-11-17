@@ -65,11 +65,16 @@ class AuthCubit extends Cubit<AuthState> {
     return null;
   }
 
+  AuthStatus _statusForUser(User? user) {
+    if (user == null) return AuthStatus.unauthenticated;
+    return user.emailVerified ? AuthStatus.authenticated : AuthStatus.unverified;
+  }
+
   void _onAuthStateChanged(User? user) {
     if (user != null) {
       emit(
         state.copyWith(
-          status: AuthStatus.authenticated,
+          status: _statusForUser(user),
           user: user,
           isLoading: false,
           clearError: true,
@@ -120,10 +125,13 @@ class AuthCubit extends Cubit<AuthState> {
             );
       emit(
         state.copyWith(
-          status: AuthStatus.authenticated,
+          status: _statusForUser(user),
           user: user,
           isLoading: false,
           clearError: true,
+          infoMessage: state.isRegisterMode && !user.emailVerified
+              ? 'Verification email sent to ${email.trim()}.'
+              : null,
         ),
       );
     } on AppException catch (e) {
@@ -146,6 +154,67 @@ class AuthCubit extends Cubit<AuthState> {
         state.copyWith(
           isLoading: false,
           infoMessage: 'Password reset link sent to ${email.trim()}.',
+        ),
+      );
+    } on AppException catch (e) {
+      emit(state.copyWith(isLoading: false, errorMessage: e.message));
+    }
+  }
+
+  Future<void> checkEmailVerification({bool silent = false}) async {
+    if (!silent) {
+      emit(state.copyWith(isLoading: true, clearError: true, clearInfo: true));
+    }
+    try {
+      final user = await _authRepository.reloadCurrentUser();
+      if (user == null) {
+        emit(
+          state.copyWith(
+            status: AuthStatus.unauthenticated,
+            clearUser: true,
+            isLoading: false,
+          ),
+        );
+        return;
+      }
+
+      if (user.emailVerified) {
+        emit(
+          state.copyWith(
+            status: AuthStatus.authenticated,
+            user: user,
+            isLoading: false,
+            clearError: true,
+            clearInfo: true,
+          ),
+        );
+      } else if (!silent) {
+        emit(
+          state.copyWith(
+            status: AuthStatus.unverified,
+            user: user,
+            isLoading: false,
+            errorMessage:
+                'Email is not verified yet. Please check your inbox or spam folder.',
+          ),
+        );
+      }
+    } on AppException catch (e) {
+      if (!silent) {
+        emit(state.copyWith(isLoading: false, errorMessage: e.message));
+      }
+    }
+  }
+
+  Future<void> resendVerificationEmail() async {
+    emit(state.copyWith(isLoading: true, clearError: true, clearInfo: true));
+    try {
+      await _authRepository.sendEmailVerification();
+      emit(
+        state.copyWith(
+          isLoading: false,
+          infoMessage:
+              'Verification link resent to ${state.user?.email ?? 'your email'}.',
         ),
       );
     } on AppException catch (e) {

@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-enum AuthStatus { initial, authenticated, unauthenticated }
+enum AuthStatus { initial, authenticated, unverified, unauthenticated }
 
 class AuthState extends Equatable {
   const AuthState({
@@ -46,6 +46,7 @@ class AuthState extends Equatable {
     status,
     user?.uid,
     user?.displayName,
+    user?.emailVerified,
     isLoading,
     isRegisterMode,
     errorMessage,

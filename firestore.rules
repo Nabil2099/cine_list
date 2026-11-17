@@ -10,6 +10,16 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isNotBanned() {
+      return isSignedIn()
+        && !exists(/databases/$(database)/documents/banned_users/$(request.auth.uid));
+    }
+
     function isValidStatus(status) {
       return status == 'want_to_watch' || status == 'watched';
     }
@@ -72,14 +82,15 @@ service cloud.firestore {
         && data.rating >= 1
         && data.rating <= 5
         && data.comment is string
-        && data.comment.size() > 0
+        && data.comment.size() >= 5
         && data.comment.size() <= 600
         && data.createdAt is timestamp;
     }
 
     match /users/{uid} {
       allow read: if isSignedIn();
-      allow create, update: if isOwner(uid) && isValidUserProfile(request.resource.data);
+      allow create, update: if isOwner(uid) && isNotBanned() && isValidUserProfile(request.resource.data);
+      allow delete: if isAdmin();
 
       match /watchlist/{movieId} {
         allow read: if isOwner(uid);
@@ -102,12 +113,30 @@ service cloud.firestore {
 
     match /reviews/{reviewId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidReview(request.resource.data);
-      allow update: if isSignedIn() && (
+      allow create: if isSignedIn() && isNotBanned() && isValidReview(request.resource.data);
+      allow update: if isSignedIn() && isNotBanned() && (
         isValidReview(request.resource.data)
-        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy'])
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'dislikedBy'])
       );
-      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+
+    match /reports/{reportId} {
+      allow create: if isSignedIn()
+        && isNotBanned()
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.reason in ['sexual_harassment', 'hate_speech', 'child_abuse'];
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /admins/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if false;
+    }
+
+    match /banned_users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if isAdmin();
     }
 
     // Deny all other document paths by default.

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/app_exception.dart';
 import '../models/movie_review_model.dart';
+import '../models/review_report_model.dart';
 import '../models/user_profile_model.dart';
 
 /// Repository managing community user profiles and public movie reviews.
@@ -13,6 +14,12 @@ class CommunityRepository {
   final FirebaseFirestore _firestore;
 
   static const String reviewsCollection = 'reviews';
+  static const String reportsCollection = 'reports';
+  static const String adminsCollection = 'admins';
+  static const String bannedUsersCollection = 'banned_users';
+
+  static const Duration reviewCooldown = Duration(seconds: 60);
+  static const int maxReviewsPer24Hours = 5;
 
   DocumentReference<Map<String, dynamic>> _profileRef(String uid) {
     return _firestore.collection(AppConstants.usersCollection).doc(uid);
@@ -20,6 +27,18 @@ class CommunityRepository {
 
   CollectionReference<Map<String, dynamic>> get _reviewsRef {
     return _firestore.collection(reviewsCollection);
+  }
+
+  CollectionReference<Map<String, dynamic>> get _reportsRef {
+    return _firestore.collection(reportsCollection);
+  }
+
+  CollectionReference<Map<String, dynamic>> get _adminsRef {
+    return _firestore.collection(adminsCollection);
+  }
+
+  CollectionReference<Map<String, dynamic>> get _bannedRef {
+    return _firestore.collection(bannedUsersCollection);
   }
 
   Stream<UserProfileModel?> watchProfile(String uid) {
@@ -80,9 +99,56 @@ class CommunityRepository {
   }
 
   Future<void> saveReview(MovieReviewModel review) async {
+    final trimmedComment = review.comment.trim();
+    if (trimmedComment.length < 5) {
+      throw const WatchlistException(
+        'Review must be at least 5 characters long.',
+      );
+    }
+
     try {
+      if (await isUserBanned(review.uid)) {
+        throw const WatchlistException(
+          'Your account has been suspended from posting reviews.',
+        );
+      }
+
+      final existingSnap = await _reviewsRef
+          .where('uid', isEqualTo: review.uid)
+          .get();
+      final otherReviews = existingSnap.docs
+          .map((d) => MovieReviewModel.fromMap(d.id, d.data()))
+          .where((r) => r.movieId != review.movieId)
+          .toList();
+
+      final now = DateTime.now();
+      for (final existing in otherReviews) {
+        if (existing.comment.trim().toLowerCase() ==
+            trimmedComment.toLowerCase()) {
+          throw const WatchlistException(
+            'Duplicate review detected. Please write an original review.',
+          );
+        }
+        if (now.difference(existing.createdAt) < reviewCooldown) {
+          throw const WatchlistException(
+            'Slow down! Please wait 60 seconds before posting another review.',
+          );
+        }
+      }
+
+      final recent24hCount = otherReviews
+          .where((r) => now.difference(r.createdAt) < const Duration(hours: 24))
+          .length;
+      if (recent24hCount >= maxReviewsPer24Hours) {
+        throw const WatchlistException(
+          'Daily limit reached (5 reviews per 24 hours).',
+        );
+      }
+
       final docId = MovieReviewModel.docIdFor(review.movieId, review.uid);
       await _reviewsRef.doc(docId).set(review.toFirestoreMap());
+    } on WatchlistException {
+      rethrow;
     } on FirebaseException catch (e) {
       throw WatchlistException(_mapError(e), code: e.code);
     } catch (_) {
@@ -100,11 +166,138 @@ class CommunityRepository {
         'likedBy': currentlyLiked
             ? FieldValue.arrayRemove([uid])
             : FieldValue.arrayUnion([uid]),
+        if (!currentlyLiked) 'dislikedBy': FieldValue.arrayRemove([uid]),
       });
     } on FirebaseException catch (e) {
       throw WatchlistException(_mapError(e), code: e.code);
     } catch (_) {
       throw const WatchlistException('Could not update review like.');
+    }
+  }
+
+  Future<void> toggleReviewDislike({
+    required String reviewId,
+    required String uid,
+    required bool currentlyDisliked,
+  }) async {
+    try {
+      await _reviewsRef.doc(reviewId).update({
+        'dislikedBy': currentlyDisliked
+            ? FieldValue.arrayRemove([uid])
+            : FieldValue.arrayUnion([uid]),
+        if (!currentlyDisliked) 'likedBy': FieldValue.arrayRemove([uid]),
+      });
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not update review dislike.');
+    }
+  }
+
+  Future<void> submitReport(ReviewReportModel report) async {
+    try {
+      final docId = ReviewReportModel.docIdFor(
+        report.reviewId,
+        report.reporterUid,
+      );
+      await _reportsRef.doc(docId).set(report.toFirestoreMap());
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not submit report.');
+    }
+  }
+
+  Future<bool> isAdmin(String uid) async {
+    try {
+      final doc = await _adminsRef.doc(uid).get();
+      return doc.exists;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> isUserBanned(String uid) async {
+    try {
+      final doc = await _bannedRef.doc(uid).get();
+      return doc.exists;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Stream<List<UserProfileModel>> watchAllUsers() {
+    return _firestore
+        .collection(AppConstants.usersCollection)
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map((doc) => UserProfileModel.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
+  }
+
+  Stream<List<ReviewReportModel>> watchReports() {
+    return _reportsRef
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map((doc) => ReviewReportModel.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
+  }
+
+  Future<void> resolveReport(String reportId) async {
+    try {
+      await _reportsRef.doc(reportId).update({'status': 'resolved'});
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not resolve report.');
+    }
+  }
+
+  Future<void> adminDeleteReview(String reviewId) async {
+    try {
+      await _reviewsRef.doc(reviewId).delete();
+      final related = await _reportsRef
+          .where('reviewId', isEqualTo: reviewId)
+          .get();
+      for (final doc in related.docs) {
+        await doc.reference.update({'status': 'resolved'});
+      }
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not delete review.');
+    }
+  }
+
+  Future<void> adminDeleteAndBanUser(String uid) async {
+    try {
+      await _bannedRef.doc(uid).set({
+        'uid': uid,
+        'bannedAt': Timestamp.fromDate(DateTime.now()),
+        'reason': 'Removed by admin',
+      });
+      await _profileRef(uid).delete();
+
+      final userReviews = await _reviewsRef.where('uid', isEqualTo: uid).get();
+      for (final doc in userReviews.docs) {
+        await doc.reference.delete();
+      }
+
+      final userReports = await _reportsRef
+          .where('reportedUid', isEqualTo: uid)
+          .get();
+      for (final doc in userReports.docs) {
+        await doc.reference.update({'status': 'resolved'});
+      }
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not remove user.');
     }
   }
 

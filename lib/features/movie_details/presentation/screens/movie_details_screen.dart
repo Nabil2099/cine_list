@@ -19,6 +19,7 @@ import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../community/data/models/movie_review_model.dart';
 import '../../../community/presentation/cubit/community_cubit.dart';
 import '../../../community/presentation/widgets/community_review_card.dart';
+import '../../../community/presentation/widgets/report_review_dialog.dart';
 import '../../../community/presentation/widgets/user_profile_dialog.dart';
 import '../../../community/presentation/widgets/write_review_dialog.dart';
 import '../../../watchlist/data/models/watchlist_movie_model.dart';
@@ -542,17 +543,21 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
       initialComment: existing?.comment ?? '',
     );
     if (result != null && context.mounted) {
-      await context.read<CommunityCubit>().submitReview(
+      final cubit = context.read<CommunityCubit>();
+      await cubit.submitReview(
         movie: details.toMovieSummary(),
         rating: result.rating,
         comment: result.comment,
       );
       if (context.mounted) {
+        final msg =
+            cubit.state.errorMessage ??
+            cubit.state.feedbackMessage ??
+            'Review posted for "${details.title}".';
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(content: Text('Review posted for "${details.title}".')),
-          );
+          ..showSnackBar(SnackBar(content: Text(msg)));
+        cubit.clearFeedback();
       }
     }
   }
@@ -627,6 +632,7 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
                       review: review,
                       isOwner: review.uid == currentUid,
                       isLiked: review.isLikedBy(currentUid),
+                      isDisliked: review.isDislikedBy(currentUid),
                       showMovieHeader: false,
                       onAuthorTap: () => UserProfileDialog.show(
                         context,
@@ -636,6 +642,36 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
                       ),
                       onToggleLike: () =>
                           context.read<CommunityCubit>().toggleLike(review),
+                      onToggleDislike: () =>
+                          context.read<CommunityCubit>().toggleDislike(review),
+                      onReport: () async {
+                        final res = await ReportReviewDialog.show(
+                          context,
+                          authorName: review.authorName,
+                        );
+                        if (res != null && context.mounted) {
+                          final cubit = context.read<CommunityCubit>();
+                          await cubit.reportReview(
+                            review: review,
+                            reason: res.reason,
+                            details: res.details,
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context)
+                              ..hideCurrentSnackBar()
+                              ..showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    cubit.state.feedbackMessage ??
+                                        cubit.state.errorMessage ??
+                                        'Report submitted.',
+                                  ),
+                                ),
+                              );
+                            cubit.clearFeedback();
+                          }
+                        }
+                      },
                       onShare: () => SharePlus.instance.share(
                         ShareParams(
                           text:

@@ -12,10 +12,13 @@ class CommunityReviewCard extends StatelessWidget {
     required this.review,
     required this.isOwner,
     this.isLiked = false,
+    this.isDisliked = false,
     this.showMovieHeader = true,
     this.onMovieTap,
     this.onAuthorTap,
     this.onToggleLike,
+    this.onToggleDislike,
+    this.onReport,
     this.onShare,
     this.onDelete,
   });
@@ -23,10 +26,13 @@ class CommunityReviewCard extends StatelessWidget {
   final MovieReviewModel review;
   final bool isOwner;
   final bool isLiked;
+  final bool isDisliked;
   final bool showMovieHeader;
   final VoidCallback? onMovieTap;
   final VoidCallback? onAuthorTap;
   final VoidCallback? onToggleLike;
+  final VoidCallback? onToggleDislike;
+  final VoidCallback? onReport;
   final VoidCallback? onShare;
   final VoidCallback? onDelete;
 
@@ -228,8 +234,68 @@ class CommunityReviewCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (onShare != null) ...[
-                const Spacer(),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: onToggleDislike,
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDisliked
+                        ? AppColors.error.withValues(alpha: 0.16)
+                        : AppColors.surfaceElevated,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isDisliked
+                          ? AppColors.error.withValues(alpha: 0.5)
+                          : AppColors.surfaceBorder,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isDisliked
+                            ? Icons.thumb_down_rounded
+                            : Icons.thumb_down_outlined,
+                        size: 14,
+                        color: isDisliked
+                            ? AppColors.error
+                            : AppColors.textSecondary,
+                      ),
+                      if (review.dislikedBy.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          '${review.dislikedBy.length}',
+                          style: TextStyle(
+                            color: isDisliked
+                                ? AppColors.error
+                                : AppColors.textSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const Spacer(),
+              if (!isOwner && onReport != null)
+                IconButton(
+                  onPressed: onReport,
+                  icon: const Icon(
+                    Icons.flag_outlined,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
+                  tooltip: 'Report review',
+                  visualDensity: VisualDensity.compact,
+                ),
+              if (onShare != null)
                 IconButton(
                   onPressed: onShare,
                   icon: const Icon(
@@ -240,7 +306,6 @@ class CommunityReviewCard extends StatelessWidget {
                   tooltip: 'Share review',
                   visualDensity: VisualDensity.compact,
                 ),
-              ],
             ],
           ),
         ],

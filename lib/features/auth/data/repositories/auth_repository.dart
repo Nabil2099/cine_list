@@ -72,8 +72,15 @@ class AuthRepository {
                 'updatedAt': Timestamp.fromDate(DateTime.now()),
               }, SetOptions(merge: true));
         } catch (_) {}
-        return _firebaseAuth.currentUser ?? user;
+        final reloaded = _firebaseAuth.currentUser ?? user;
+        try {
+          await reloaded.sendEmailVerification();
+        } catch (_) {}
+        return reloaded;
       }
+      try {
+        await user.sendEmailVerification();
+      } catch (_) {}
       return user;
     } on FirebaseAuthException catch (e) {
       throw AuthException(_mapFirebaseAuthError(e), code: e.code);
@@ -92,6 +99,33 @@ class AuthRepository {
       throw AuthException(_mapFirebaseAuthError(e), code: e.code);
     } catch (_) {
       throw const AuthException('Could not send password reset email.');
+    }
+  }
+
+  Future<void> sendEmailVerification() async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) {
+      throw const AuthException('No signed-in user found.');
+    }
+    try {
+      await user.sendEmailVerification();
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_mapFirebaseAuthError(e), code: e.code);
+    } catch (_) {
+      throw const AuthException('Could not send verification email.');
+    }
+  }
+
+  Future<User?> reloadCurrentUser() async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) return null;
+    try {
+      await user.reload();
+      return _firebaseAuth.currentUser;
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_mapFirebaseAuthError(e), code: e.code);
+    } catch (_) {
+      throw const AuthException('Could not refresh verification status.');
     }
   }
 

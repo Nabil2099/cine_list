@@ -4,10 +4,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/admin/presentation/screens/admin_screen.dart';
 import '../../features/ai_chat/presentation/screens/ai_chat_screen.dart';
 import '../../features/auth/presentation/cubit/auth_cubit.dart';
 import '../../features/auth/presentation/cubit/auth_state.dart';
 import '../../features/auth/presentation/screens/auth_screen.dart';
+import '../../features/auth/presentation/screens/verify_email_screen.dart';
 import '../../features/community/presentation/screens/community_screen.dart';
 import '../../features/discover/presentation/cubit/discover_cubit.dart';
 import '../../features/discover/presentation/cubit/discover_state.dart';
@@ -74,10 +76,15 @@ class AppRouter {
         if (location == '/' ||
             location == '/splash' ||
             location == '/welcome' ||
-            location == '/auth') {
+            location == '/auth' ||
+            location == '/verify-email') {
           return '/discover';
         }
         return null;
+      }
+
+      if (authStatus == AuthStatus.unverified) {
+        return location == '/verify-email' ? null : '/verify-email';
       }
 
       // Unauthenticated
@@ -122,6 +129,10 @@ class AppRouter {
         builder: (context, state) => AuthScreen(
           onBackToLanding: kIsWeb ? () => context.go('/welcome') : null,
         ),
+      ),
+      GoRoute(
+        path: '/verify-email',
+        builder: (context, state) => const VerifyEmailScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -168,6 +179,10 @@ class AppRouter {
       GoRoute(
         path: '/movie/:id',
         pageBuilder: (context, state) => MovieDetailsRoute.buildPage(state),
+      ),
+      GoRoute(
+        path: '/admin',
+        builder: (context, state) => const AdminScreen(),
       ),
     ],
   );

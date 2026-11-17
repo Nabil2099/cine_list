@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/routing/movie_details_route.dart';
@@ -11,8 +12,8 @@ import '../../../../core/widgets/loading_view.dart';
 import '../../../../shared/models/movie_summary.dart';
 import '../../../../shared/widgets/movie_card.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
-import '../../../auth/presentation/cubit/auth_state.dart';
 import '../../../community/presentation/cubit/community_cubit.dart';
+import '../../../community/presentation/widgets/user_avatar_widget.dart';
 import '../../../watchlist/presentation/cubit/watchlist_cubit.dart';
 import '../cubit/discover_cubit.dart';
 import '../cubit/discover_state.dart';
@@ -252,61 +253,25 @@ class _DiscoverHeader extends StatelessWidget {
             ],
           ),
         ),
-        BlocBuilder<AuthCubit, AuthState>(
-          buildWhen: (prev, curr) => prev.isLoading != curr.isLoading,
-          builder: (context, authState) {
-            return PopupMenuButton<String>(
-              tooltip: 'Account options',
-              icon: Container(
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceCard,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.surfaceBorder),
-                ),
-                child: const Icon(
-                  Icons.person_outline_rounded,
-                  color: AppColors.khakiBeige,
-                  size: 20,
+        Builder(
+          builder: (context) {
+            final profile = context.select<CommunityCubit, ({String key, String? photo})>(
+              (c) => (
+                key: c.state.profile?.avatarKey ?? 'cinema',
+                photo: c.state.profile?.photoBase64,
+              ),
+            );
+            return InkWell(
+              onTap: () => context.push('/profile'),
+              borderRadius: BorderRadius.circular(24),
+              child: Tooltip(
+                message: 'My Profile',
+                child: UserAvatar(
+                  avatarKey: profile.key,
+                  photoBase64: profile.photo,
+                  radius: 19,
                 ),
               ),
-              color: AppColors.surfaceElevated,
-              onSelected: (value) {
-                if (value == 'logout') {
-                  onSignOut();
-                }
-              },
-              itemBuilder: (_) => [
-                if (userEmail != null)
-                  PopupMenuItem<String>(
-                    enabled: false,
-                    child: Text(
-                      userEmail!,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12.5,
-                      ),
-                    ),
-                  ),
-                const PopupMenuDivider(),
-                const PopupMenuItem<String>(
-                  value: 'logout',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.logout_rounded,
-                        size: 18,
-                        color: AppColors.error,
-                      ),
-                      SizedBox(width: 10),
-                      Text(
-                        'Log Out',
-                        style: TextStyle(color: AppColors.textPrimary),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             );
           },
         ),

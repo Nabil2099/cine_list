@@ -62,7 +62,11 @@ class UserProfileDialog extends StatelessWidget {
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              UserAvatar(avatarKey: avatarKey, radius: 34),
+              UserAvatar(
+                avatarKey: avatarKey,
+                photoBase64: profile?.photoBase64,
+                radius: 34,
+              ),
               const SizedBox(height: 12),
               Text(
                 displayName,

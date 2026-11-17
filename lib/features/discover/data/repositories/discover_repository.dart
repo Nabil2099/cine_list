@@ -26,10 +26,13 @@ enum DiscoverCategory {
 class DiscoverGenre {
   const DiscoverGenre(this.id, this.label);
 
+  static const int arabicGenreId = -1;
+
   final int id;
   final String label;
 
   static const List<DiscoverGenre> defaults = [
+    DiscoverGenre(arabicGenreId, 'Arabic'),
     DiscoverGenre(28, 'Action'),
     DiscoverGenre(878, 'Sci-Fi'),
     DiscoverGenre(53, 'Thriller'),
@@ -37,6 +40,12 @@ class DiscoverGenre {
     DiscoverGenre(18, 'Drama'),
     DiscoverGenre(27, 'Horror'),
     DiscoverGenre(16, 'Animation'),
+    DiscoverGenre(10749, 'Romance'),
+    DiscoverGenre(80, 'Crime'),
+    DiscoverGenre(9648, 'Mystery'),
+    DiscoverGenre(12, 'Adventure'),
+    DiscoverGenre(14, 'Fantasy'),
+    DiscoverGenre(99, 'Documentary'),
   ];
 }
 
@@ -65,6 +74,9 @@ class DiscoverRepository {
   }
 
   Future<PaginatedMoviesResponse> fetchByGenre(int genreId, {int page = 1}) {
+    if (genreId == DiscoverGenre.arabicGenreId) {
+      return _remoteDataSource.discoverArabicMovies(page: page);
+    }
     return _remoteDataSource.discoverMoviesByGenre(
       genreId: genreId,
       page: page,

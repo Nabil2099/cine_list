@@ -31,9 +31,9 @@ class AppBottomNavigationBar extends StatelessWidget {
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined, color: AppColors.textSecondary),
+            icon: Icon(Icons.explore_outlined, color: AppColors.textSecondary),
             selectedIcon: Icon(
-              Icons.home_rounded,
+              Icons.explore_rounded,
               color: AppColors.pacificBlue,
             ),
             label: 'Discover',

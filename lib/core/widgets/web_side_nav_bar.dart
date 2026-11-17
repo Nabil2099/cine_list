@@ -27,7 +27,7 @@ class WebSideNavBar extends StatelessWidget {
     (
       icon: Icons.auto_awesome_outlined,
       activeIcon: Icons.auto_awesome_rounded,
-      label: 'AI Concierge',
+      label: 'AI',
     ),
     (
       icon: Icons.groups_outlined,

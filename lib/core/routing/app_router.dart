@@ -15,6 +15,7 @@ import '../../features/discover/presentation/cubit/discover_cubit.dart';
 import '../../features/discover/presentation/cubit/discover_state.dart';
 import '../../features/discover/presentation/screens/discover_screen.dart';
 import '../../features/landing/presentation/screens/web_landing_screen.dart';
+import '../../features/profile/presentation/screens/profile_screen.dart';
 import '../../features/watchlist/presentation/screens/watchlist_screen.dart';
 import '../widgets/splash_screen.dart';
 import 'app_shell.dart';
@@ -183,6 +184,10 @@ class AppRouter {
       GoRoute(
         path: '/admin',
         builder: (context, state) => const AdminScreen(),
+      ),
+      GoRoute(
+        path: '/profile',
+        builder: (context, state) => const ProfileScreen(),
       ),
     ],
   );

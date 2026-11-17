@@ -39,6 +39,8 @@ class CommunityScreen extends StatelessWidget {
         displayName: result.displayName,
         bio: result.bio,
         avatarKey: result.avatarKey,
+        photoBase64: result.photoBase64,
+        clearPhoto: result.clearPhoto,
       );
     }
   }
@@ -270,7 +272,11 @@ class _ProfileCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          UserAvatar(avatarKey: profile.avatarKey, radius: 28),
+          UserAvatar(
+            avatarKey: profile.avatarKey,
+            photoBase64: profile.photoBase64,
+            radius: 28,
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(

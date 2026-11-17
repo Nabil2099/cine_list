@@ -57,7 +57,8 @@ service cloud.firestore {
         && data.bio is string
         && data.bio.size() <= 200
         && data.avatarKey is string
-        && data.updatedAt is timestamp;
+        && data.updatedAt is timestamp
+        && (!('photoBase64' in data) || data.photoBase64 == null || (data.photoBase64 is string && data.photoBase64.size() <= 400000));
     }
 
     function isValidReview(data) {

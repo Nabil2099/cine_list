@@ -24,13 +24,16 @@ class _AuthScreenState extends State<AuthScreen> {
   final _displayNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   @override
   void dispose() {
     _displayNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -45,59 +48,11 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> _showForgotPasswordDialog() async {
-    final resetController = TextEditingController(text: _emailController.text);
-    final dialogKey = GlobalKey<FormState>();
-
     final submittedEmail = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text(
-          'Reset Password',
-          style: TextStyle(color: AppColors.khakiBeige),
-        ),
-        content: Form(
-          key: dialogKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Enter your email address and we will send you a reset link.',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-              ),
-              const SizedBox(height: 14),
-              CustomTextField(
-                controller: resetController,
-                hintText: 'Email',
-                prefixIcon: Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
-                validator: AuthCubit.validateEmail,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.pacificBlue,
-              foregroundColor: AppColors.black,
-            ),
-            onPressed: () {
-              if (dialogKey.currentState?.validate() ?? false) {
-                Navigator.of(dialogContext).pop(resetController.text.trim());
-              }
-            },
-            child: const Text('Send Link'),
-          ),
-        ],
-      ),
+      builder: (_) => _ForgotPasswordDialog(initialEmail: _emailController.text),
     );
 
-    resetController.dispose();
     if (submittedEmail != null && mounted) {
       context.read<AuthCubit>().sendPasswordReset(submittedEmail);
     }
@@ -240,13 +195,17 @@ class _AuthScreenState extends State<AuthScreen> {
                                   hintText: 'Password',
                                   prefixIcon: Icons.lock_outline_rounded,
                                   obscureText: _obscurePassword,
-                                  textInputAction: TextInputAction.done,
+                                  textInputAction: isRegister
+                                      ? TextInputAction.next
+                                      : TextInputAction.done,
                                   autofillHints: [
                                     isRegister
                                         ? AutofillHints.newPassword
                                         : AutofillHints.password,
                                   ],
-                                  onFieldSubmitted: (_) => _onSubmit(),
+                                  onFieldSubmitted: isRegister
+                                      ? null
+                                      : (_) => _onSubmit(),
                                   validator: AuthCubit.validatePassword,
                                   suffixIcon: IconButton(
                                     onPressed: () {
@@ -265,6 +224,46 @@ class _AuthScreenState extends State<AuthScreen> {
                                         : 'Hide password',
                                   ),
                                 ),
+                                if (isRegister) ...[
+                                  const SizedBox(height: 14),
+                                  CustomTextField(
+                                    controller: _confirmPasswordController,
+                                    hintText: 'Confirm Password',
+                                    prefixIcon: Icons.lock_outline_rounded,
+                                    obscureText: _obscureConfirmPassword,
+                                    textInputAction: TextInputAction.done,
+                                    autofillHints: const [
+                                      AutofillHints.newPassword,
+                                    ],
+                                    onFieldSubmitted: (_) => _onSubmit(),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Please confirm your password.';
+                                      }
+                                      if (value != _passwordController.text) {
+                                        return 'Passwords do not match.';
+                                      }
+                                      return null;
+                                    },
+                                    suffixIcon: IconButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          _obscureConfirmPassword =
+                                              !_obscureConfirmPassword;
+                                        });
+                                      },
+                                      icon: Icon(
+                                        _obscureConfirmPassword
+                                            ? Icons.visibility_outlined
+                                            : Icons.visibility_off_outlined,
+                                        size: 20,
+                                      ),
+                                      tooltip: _obscureConfirmPassword
+                                          ? 'Show password'
+                                          : 'Hide password',
+                                    ),
+                                  ),
+                                ],
                                 if (!isRegister)
                                   Align(
                                     alignment: Alignment.centerRight,
@@ -377,6 +376,85 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ForgotPasswordDialog extends StatefulWidget {
+  const _ForgotPasswordDialog({required this.initialEmail});
+
+  final String initialEmail;
+
+  @override
+  State<_ForgotPasswordDialog> createState() => _ForgotPasswordDialogState();
+}
+
+class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
+  final _dialogKey = GlobalKey<FormState>();
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialEmail);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_dialogKey.currentState?.validate() ?? false) {
+      Navigator.of(context).pop(_controller.text.trim());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text(
+        'Reset Password',
+        style: TextStyle(color: AppColors.khakiBeige),
+      ),
+      content: Form(
+        key: _dialogKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enter your email address and we will send you a reset link.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 14),
+            CustomTextField(
+              controller: _controller,
+              hintText: 'Email',
+              prefixIcon: Icons.email_outlined,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) => _submit(),
+              validator: AuthCubit.validateEmail,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.pacificBlue,
+            foregroundColor: AppColors.black,
+          ),
+          onPressed: _submit,
+          child: const Text('Send Link'),
+        ),
+      ],
     );
   }
 }

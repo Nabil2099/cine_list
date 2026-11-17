@@ -112,6 +112,8 @@ class CommunityCubit extends Cubit<CommunityState> {
     required String displayName,
     required String bio,
     required String avatarKey,
+    String? photoBase64,
+    bool clearPhoto = false,
   }) async {
     final uid = _currentUid;
     if (uid == null) return;
@@ -125,6 +127,7 @@ class CommunityCubit extends Cubit<CommunityState> {
             : (_fallbackName ?? 'Movie Fan'),
         bio: bio.trim(),
         avatarKey: avatarKey,
+        photoBase64: clearPhoto ? null : (photoBase64 ?? state.profile?.photoBase64),
         updatedAt: DateTime.now(),
       );
       await _repository.saveProfile(updated);

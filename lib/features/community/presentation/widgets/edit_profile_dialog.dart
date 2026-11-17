@@ -1,18 +1,27 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/user_profile_model.dart';
+import 'user_avatar_widget.dart';
 
 class ProfileEditResult {
   const ProfileEditResult({
     required this.displayName,
     required this.bio,
     required this.avatarKey,
+    this.photoBase64,
+    this.clearPhoto = false,
   });
 
   final String displayName;
   final String bio;
   final String avatarKey;
+  final String? photoBase64;
+  final bool clearPhoto;
 }
 
 /// Dialog allowing the user to customize their display name, bio, and avatar.
@@ -39,6 +48,9 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
   late final TextEditingController _nameController;
   late final TextEditingController _bioController;
   late String _selectedAvatar;
+  String? _photoBase64;
+  bool _clearPhoto = false;
+  bool _pickingImage = false;
 
   @override
   void initState() {
@@ -48,6 +60,67 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
     );
     _bioController = TextEditingController(text: widget.initialProfile.bio);
     _selectedAvatar = widget.initialProfile.avatarKey;
+    _photoBase64 = widget.initialProfile.photoBase64;
+  }
+
+  Future<void> _pickPhoto() async {
+    if (_pickingImage) return;
+    setState(() => _pickingImage = true);
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 256,
+        maxHeight: 256,
+        imageQuality: 65,
+      );
+      if (picked != null && mounted) {
+        final bytes = await picked.readAsBytes();
+        if (bytes.lengthInBytes > 280000) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please choose a smaller image (under 280 KB).'),
+              ),
+            );
+          }
+          return;
+        }
+        setState(() {
+          _photoBase64 = base64Encode(bytes);
+          _clearPhoto = false;
+        });
+      }
+    } on MissingPluginException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Image picker requires a full app rebuild (stop & run flutter run).',
+            ),
+          ),
+        );
+      }
+    } on PlatformException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.code == 'photo_access_denied'
+                  ? 'Photo library permission denied.'
+                  : 'Could not pick image: ${e.message ?? e.code}',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not pick image: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _pickingImage = false);
+    }
   }
 
   @override
@@ -69,8 +142,45 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Row(
+              children: [
+                UserAvatar(
+                  avatarKey: _selectedAvatar,
+                  photoBase64: _photoBase64,
+                  radius: 28,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _pickingImage ? null : _pickPhoto,
+                        icon: const Icon(Icons.photo_camera_outlined, size: 16),
+                        label: Text(
+                          _pickingImage ? 'Loading...' : 'Upload Photo',
+                        ),
+                      ),
+                      if (_photoBase64 != null && _photoBase64!.isNotEmpty)
+                        TextButton(
+                          onPressed: () => setState(() {
+                            _photoBase64 = null;
+                            _clearPhoto = true;
+                          }),
+                          child: const Text(
+                            'Remove',
+                            style: TextStyle(color: AppColors.error),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
             const Text(
-              'Choose Avatar',
+              'Or Choose Preset Avatar',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
             ),
             const SizedBox(height: 10),
@@ -165,6 +275,8 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                 displayName: _nameController.text.trim(),
                 bio: _bioController.text.trim(),
                 avatarKey: _selectedAvatar,
+                photoBase64: _photoBase64,
+                clearPhoto: _clearPhoto,
               ),
             );
           },

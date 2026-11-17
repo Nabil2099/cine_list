@@ -80,6 +80,7 @@ class UserProfileModel extends Equatable {
     required this.displayName,
     this.bio = '',
     this.avatarKey = 'cinema',
+    this.photoBase64,
     this.updatedAt,
   });
 
@@ -91,6 +92,7 @@ class UserProfileModel extends Equatable {
           : 'Movie Fan',
       bio: (map['bio'] as String?) ?? '',
       avatarKey: (map['avatarKey'] as String?) ?? 'cinema',
+      photoBase64: map['photoBase64'] as String?,
       updatedAt: _parseTimestamp(map['updatedAt']),
     );
   }
@@ -99,6 +101,7 @@ class UserProfileModel extends Equatable {
   final String displayName;
   final String bio;
   final String avatarKey;
+  final String? photoBase64;
   final DateTime? updatedAt;
 
   Map<String, dynamic> toFirestoreMap() {
@@ -106,6 +109,7 @@ class UserProfileModel extends Equatable {
       'displayName': displayName.trim(),
       'bio': bio.trim(),
       'avatarKey': avatarKey,
+      'photoBase64': photoBase64,
       'updatedAt': Timestamp.fromDate(updatedAt ?? DateTime.now()),
     };
   }
@@ -114,6 +118,8 @@ class UserProfileModel extends Equatable {
     String? displayName,
     String? bio,
     String? avatarKey,
+    String? photoBase64,
+    bool clearPhoto = false,
     DateTime? updatedAt,
   }) {
     return UserProfileModel(
@@ -121,6 +127,7 @@ class UserProfileModel extends Equatable {
       displayName: displayName ?? this.displayName,
       bio: bio ?? this.bio,
       avatarKey: avatarKey ?? this.avatarKey,
+      photoBase64: clearPhoto ? null : (photoBase64 ?? this.photoBase64),
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -132,5 +139,12 @@ class UserProfileModel extends Equatable {
   }
 
   @override
-  List<Object?> get props => [uid, displayName, bio, avatarKey, updatedAt];
+  List<Object?> get props => [
+    uid,
+    displayName,
+    bio,
+    avatarKey,
+    photoBase64,
+    updatedAt,
+  ];
 }

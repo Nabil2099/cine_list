@@ -66,6 +66,19 @@ class TmdbRemoteDataSource {
     return PaginatedMoviesResponse.fromJson(data);
   }
 
+  Future<PaginatedMoviesResponse> discoverArabicMovies({int page = 1}) async {
+    final data = await _dioClient.get(
+      ApiConstants.discoverMovies,
+      queryParameters: {
+        'with_original_language': 'ar',
+        'sort_by': 'popularity.desc',
+        'page': page,
+        'language': 'en-US',
+      },
+    );
+    return PaginatedMoviesResponse.fromJson(data);
+  }
+
   Future<PaginatedMoviesResponse> searchMovies({
     required String query,
     int page = 1,

@@ -207,7 +207,7 @@ class DiscoverProfileDrawer extends StatelessWidget {
                       Icons.person_outline_rounded,
                       color: AppColors.pacificBlue,
                     ),
-                    title: const Text('Full Profile & Edit Photo'),
+                    title: const Text('Edit Profile'),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () {
                       Navigator.of(context).pop();
@@ -373,4 +373,3 @@ class _MiniStat extends StatelessWidget {
     );
   }
 }
-

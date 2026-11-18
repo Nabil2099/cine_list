@@ -68,7 +68,8 @@ service cloud.firestore {
         && data.avatarKey is string
         && data.updatedAt is timestamp
         && (!('photoBase64' in data) || data.photoBase64 == null || (data.photoBase64 is string && data.photoBase64.size() <= 400000))
-        && (!('reputation' in data) || (data.reputation is int && data.reputation >= 0));
+        && (!('reputation' in data) || (data.reputation is int && data.reputation >= 0))
+        && (!('followingUids' in data) || data.followingUids is list);
     }
 
     function isValidReview(data) {
@@ -95,7 +96,9 @@ service cloud.firestore {
         && data.comment is string
         && data.comment.size() >= 5
         && data.comment.size() <= 600
-        && data.createdAt is timestamp;
+        && data.createdAt is timestamp
+        && (!('hasSpoilers' in data) || data.hasSpoilers is bool)
+        && (!('isVerifiedWatch' in data) || data.isVerifiedWatch is bool);
     }
 
     match /users/{uid} {

@@ -78,6 +78,24 @@ class CommunityRepository {
     }
   }
 
+  Future<void> toggleFollowUser({
+    required String currentUid,
+    required String targetUid,
+    required bool currentlyFollowing,
+  }) async {
+    try {
+      await _profileRef(currentUid).update({
+        'followingUids': currentlyFollowing
+            ? FieldValue.arrayRemove([targetUid])
+            : FieldValue.arrayUnion([targetUid]),
+      });
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not update follow status.');
+    }
+  }
+
   Stream<List<MovieReviewModel>> watchRecentReviews({int limit = 40}) {
     return _reviewsRef
         .orderBy('createdAt', descending: true)
@@ -177,62 +195,33 @@ class CommunityRepository {
     required String reviewId,
     required String uid,
     required bool currentlyLiked,
-  }) async {
-    try {
-      await _firestore.runTransaction((tx) async {
-        final reviewRef = _reviewsRef.doc(reviewId);
-        final reviewSnap = await tx.get(reviewRef);
-        final data = reviewSnap.data();
-        if (!reviewSnap.exists || data == null) return;
-
-        final authorUid = (data['uid'] as String?) ?? '';
-        final likedBy = List<String>.from(
-          (data['likedBy'] as List?)?.whereType<String>() ?? const [],
-        );
-        final dislikedBy = List<String>.from(
-          (data['dislikedBy'] as List?)?.whereType<String>() ?? const [],
-        );
-
-        final wasLiked = likedBy.contains(uid);
-        final wasDisliked = dislikedBy.contains(uid);
-
-        int delta = 0;
-        if (wasLiked) {
-          likedBy.remove(uid);
-          delta = -10;
-        } else {
-          likedBy.add(uid);
-          delta = 10;
-          if (wasDisliked) {
-            dislikedBy.remove(uid);
-            delta += 5;
-          }
-        }
-
-        if (authorUid.isNotEmpty && authorUid != uid && delta != 0) {
-          final authorRef = _profileRef(authorUid);
-          final authorSnap = await tx.get(authorRef);
-          if (authorSnap.exists) {
-            final currentRep =
-                (authorSnap.data()?['reputation'] as num?)?.toInt() ?? 0;
-            final nextRep = (currentRep + delta).clamp(0, 999999);
-            tx.update(authorRef, {'reputation': nextRep});
-          }
-        }
-
-        tx.update(reviewRef, {'likedBy': likedBy, 'dislikedBy': dislikedBy});
-      });
-    } on FirebaseException catch (e) {
-      throw WatchlistException(_mapError(e), code: e.code);
-    } catch (_) {
-      throw const WatchlistException('Could not update review like.');
-    }
+  }) {
+    return _toggleReviewReaction(
+      reviewId: reviewId,
+      uid: uid,
+      isLike: true,
+      errorMessage: 'Could not update review like.',
+    );
   }
 
   Future<void> toggleReviewDislike({
     required String reviewId,
     required String uid,
     required bool currentlyDisliked,
+  }) {
+    return _toggleReviewReaction(
+      reviewId: reviewId,
+      uid: uid,
+      isLike: false,
+      errorMessage: 'Could not update review dislike.',
+    );
+  }
+
+  Future<void> _toggleReviewReaction({
+    required String reviewId,
+    required String uid,
+    required bool isLike,
+    required String errorMessage,
   }) async {
     try {
       await _firestore.runTransaction((tx) async {
@@ -253,15 +242,29 @@ class CommunityRepository {
         final wasDisliked = dislikedBy.contains(uid);
 
         int delta = 0;
-        if (wasDisliked) {
-          dislikedBy.remove(uid);
-          delta = 5;
-        } else {
-          dislikedBy.add(uid);
-          delta = -5;
+        if (isLike) {
           if (wasLiked) {
             likedBy.remove(uid);
-            delta -= 10;
+            delta = -10;
+          } else {
+            likedBy.add(uid);
+            delta = 10;
+            if (wasDisliked) {
+              dislikedBy.remove(uid);
+              delta += 5;
+            }
+          }
+        } else {
+          if (wasDisliked) {
+            dislikedBy.remove(uid);
+            delta = 5;
+          } else {
+            dislikedBy.add(uid);
+            delta = -5;
+            if (wasLiked) {
+              likedBy.remove(uid);
+              delta -= 10;
+            }
           }
         }
 
@@ -281,7 +284,7 @@ class CommunityRepository {
     } on FirebaseException catch (e) {
       throw WatchlistException(_mapError(e), code: e.code);
     } catch (_) {
-      throw const WatchlistException('Could not update review dislike.');
+      throw WatchlistException(errorMessage);
     }
   }
 

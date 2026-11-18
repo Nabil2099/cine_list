@@ -119,10 +119,16 @@ class UserProfileModel extends Equatable {
     this.avatarKey = 'cinema',
     this.photoBase64,
     this.reputation = 0,
+    this.followingUids = const [],
     this.updatedAt,
   });
 
   factory UserProfileModel.fromMap(String uid, Map<String, dynamic> map) {
+    final rawFollowing = map['followingUids'];
+    final followingUids = rawFollowing is List
+        ? rawFollowing.whereType<String>().toList()
+        : const <String>[];
+
     return UserProfileModel(
       uid: uid,
       displayName: (map['displayName'] as String?)?.trim().isNotEmpty == true
@@ -132,6 +138,7 @@ class UserProfileModel extends Equatable {
       avatarKey: (map['avatarKey'] as String?) ?? 'cinema',
       photoBase64: map['photoBase64'] as String?,
       reputation: ((map['reputation'] as num?)?.toInt() ?? 0).clamp(0, 999999),
+      followingUids: followingUids,
       updatedAt: _parseTimestamp(map['updatedAt']),
     );
   }
@@ -142,9 +149,11 @@ class UserProfileModel extends Equatable {
   final String avatarKey;
   final String? photoBase64;
   final int reputation;
+  final List<String> followingUids;
   final DateTime? updatedAt;
 
   ReputationTier get tier => ReputationTier.fromPoints(reputation);
+  bool isFollowing(String targetUid) => followingUids.contains(targetUid);
 
   Map<String, dynamic> toFirestoreMap() {
     return {
@@ -153,6 +162,7 @@ class UserProfileModel extends Equatable {
       'avatarKey': avatarKey,
       'photoBase64': photoBase64,
       'reputation': reputation,
+      'followingUids': followingUids,
       'updatedAt': Timestamp.fromDate(updatedAt ?? DateTime.now()),
     };
   }
@@ -164,6 +174,7 @@ class UserProfileModel extends Equatable {
     String? photoBase64,
     bool clearPhoto = false,
     int? reputation,
+    List<String>? followingUids,
     DateTime? updatedAt,
   }) {
     return UserProfileModel(
@@ -173,6 +184,7 @@ class UserProfileModel extends Equatable {
       avatarKey: avatarKey ?? this.avatarKey,
       photoBase64: clearPhoto ? null : (photoBase64 ?? this.photoBase64),
       reputation: reputation ?? this.reputation,
+      followingUids: followingUids ?? this.followingUids,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -191,6 +203,7 @@ class UserProfileModel extends Equatable {
     avatarKey,
     photoBase64,
     reputation,
+    followingUids,
     updatedAt,
   ];
 }

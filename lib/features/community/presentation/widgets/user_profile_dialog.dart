@@ -1,6 +1,6 @@
 import 'package:cine_list/core/theme/app_colors.dart';
 import 'package:cine_list/features/community/data/models/user_profile_model.dart';
-import 'package:cine_list/features/community/presentation/cubit/community_cubit.dart';
+import 'package:cine_list/features/community/presentation/bloc/community_bloc.dart';
 import 'package:cine_list/features/community/presentation/widgets/user_avatar_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -23,11 +23,11 @@ class UserProfileDialog extends StatelessWidget {
     required String fallbackName,
     required String fallbackAvatarKey,
   }) {
-    final cubit = context.read<CommunityCubit>();
+    final bloc = context.read<CommunityBloc>();
     return showDialog<void>(
       context: context,
       builder: (_) => BlocProvider.value(
-        value: cubit,
+        value: bloc,
         child: UserProfileDialog(
           uid: uid,
           fallbackName: fallbackName,
@@ -39,11 +39,16 @@ class UserProfileDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cubit = context.read<CommunityCubit>();
+    final bloc = context.read<CommunityBloc>();
+    final viewerUid = bloc.currentUid;
+    final canFollow = viewerUid != null && viewerUid != uid;
+    final isFollowing = context.select<CommunityBloc, bool>(
+      (b) => b.state.profile?.isFollowing(uid) ?? false,
+    );
     final future = Future.wait([
-      cubit.fetchUserProfile(uid),
-      cubit.checkIsAdmin(uid),
-      cubit.checkIsModerator(uid),
+      bloc.fetchUserProfile(uid),
+      bloc.checkIsAdmin(uid),
+      bloc.checkIsModerator(uid),
     ]);
 
     return AlertDialog(
@@ -215,6 +220,23 @@ class UserProfileDialog extends StatelessWidget {
         },
       ),
       actions: [
+        if (canFollow)
+          FilledButton.icon(
+            onPressed: () => bloc.add(CommunityFollowToggled(uid)),
+            style: FilledButton.styleFrom(
+              backgroundColor: isFollowing
+                  ? AppColors.surfaceElevated
+                  : AppColors.pacificBlue,
+              foregroundColor: isFollowing
+                  ? AppColors.textPrimary
+                  : AppColors.black,
+            ),
+            icon: Icon(
+              isFollowing ? Icons.check_rounded : Icons.person_add_alt_1_rounded,
+              size: 16,
+            ),
+            label: Text(isFollowing ? 'Following' : 'Follow'),
+          ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Close'),

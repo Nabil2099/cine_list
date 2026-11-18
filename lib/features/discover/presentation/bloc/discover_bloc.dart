@@ -4,20 +4,22 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/storage/preferences_service.dart';
-import '../../../../core/utils/debouncer.dart';
+import '../../../../core/utils/bloc_transformers.dart';
 import '../../data/repositories/discover_repository.dart';
-import 'discover_state.dart';
+import '../cubit/discover_state.dart';
+import 'discover_event.dart';
 
-/// Manages movie discovery categories, debounced search, pagination, and errors.
-class DiscoverCubit extends Cubit<DiscoverState> {
-  DiscoverCubit(
+export '../cubit/discover_state.dart';
+export 'discover_event.dart';
+
+/// Manages movie discovery categories, debounced search cancellation, and pagination.
+class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
+  DiscoverBloc(
     this._repository, {
     PreferencesService? preferencesService,
     Duration? debounceDuration,
   }) : _preferencesService = preferencesService,
-       _debouncer = Debouncer(
-         delay: debounceDuration ?? AppConstants.searchDebounce,
-       ),
+       _debounceDuration = debounceDuration ?? AppConstants.searchDebounce,
        super(
          DiscoverState(
            selectedCategory: preferencesService != null
@@ -26,20 +28,42 @@ class DiscoverCubit extends Cubit<DiscoverState> {
                  )
                : DiscoverCategory.trending,
          ),
-       );
+       ) {
+    on<DiscoverFeedLoadEvent>(_onFeedLoadEvent, transformer: restartable());
+    on<DiscoverNextPageLoaded>(_onNextPageLoaded, transformer: droppable());
+  }
 
   final DiscoverRepository _repository;
   final PreferencesService? _preferencesService;
-  final Debouncer _debouncer;
+  final Duration _debounceDuration;
 
   CancelToken? _searchCancelToken;
   int _activeRequestId = 0;
 
-  Future<void> loadInitial() async {
-    await _loadCategory(state.selectedCategory, page: 1);
+  Future<void> _onFeedLoadEvent(
+    DiscoverFeedLoadEvent event,
+    Emitter<DiscoverState> emit,
+  ) async {
+    switch (event) {
+      case DiscoverInitialLoaded():
+        await _loadCategory(state.selectedCategory, page: 1, emit: emit);
+      case DiscoverCategorySelected(:final category):
+        await _selectCategory(category, emit);
+      case DiscoverGenreSelected(:final genreId):
+        await _selectGenre(genreId, emit);
+      case DiscoverSearchChanged(:final query):
+        await _searchChanged(query, emit);
+      case DiscoverSearchCleared():
+        await _clearSearch(emit);
+      case DiscoverRetried():
+        await _retry(emit);
+    }
   }
 
-  Future<void> selectCategory(DiscoverCategory category) async {
+  Future<void> _selectCategory(
+    DiscoverCategory category,
+    Emitter<DiscoverState> emit,
+  ) async {
     if (category == state.selectedCategory &&
         state.selectedGenreId == null &&
         !state.isSearching &&
@@ -47,9 +71,9 @@ class DiscoverCubit extends Cubit<DiscoverState> {
       return;
     }
 
-    _debouncer.cancel();
     _cancelOngoingSearch();
     await _preferencesService?.setSelectedDiscoverCategory(category.key);
+    if (emit.isDone) return;
 
     emit(
       state.copyWith(
@@ -59,18 +83,17 @@ class DiscoverCubit extends Cubit<DiscoverState> {
         clearError: true,
       ),
     );
-    await _loadCategory(category, page: 1);
+    await _loadCategory(category, page: 1, emit: emit);
   }
 
-  Future<void> selectGenre(int? genreId) async {
+  Future<void> _selectGenre(int? genreId, Emitter<DiscoverState> emit) async {
     if (genreId == state.selectedGenreId && !state.isSearching) return;
 
-    _debouncer.cancel();
     _cancelOngoingSearch();
 
     if (genreId == null) {
       emit(state.copyWith(clearGenre: true, searchQuery: '', clearError: true));
-      await _loadCategory(state.selectedCategory, page: 1);
+      await _loadCategory(state.selectedCategory, page: 1, emit: emit);
       return;
     }
 
@@ -81,44 +104,45 @@ class DiscoverCubit extends Cubit<DiscoverState> {
         clearError: true,
       ),
     );
-    await _loadGenre(genreId, page: 1);
+    await _loadGenre(genreId, page: 1, emit: emit);
   }
 
-  void onSearchChanged(String query) {
+  Future<void> _searchChanged(String query, Emitter<DiscoverState> emit) async {
     final trimmed = query.trim();
     emit(state.copyWith(searchQuery: query, clearError: true));
 
     if (trimmed.isEmpty) {
-      _debouncer.cancel();
       _cancelOngoingSearch();
-      _loadCategory(state.selectedCategory, page: 1);
+      await _loadCategory(state.selectedCategory, page: 1, emit: emit);
       return;
     }
 
-    _debouncer.run(() {
-      _performSearch(trimmed, page: 1);
-    });
+    await Future<void>.delayed(_debounceDuration);
+    if (emit.isDone || isClosed) return;
+    await _performSearch(trimmed, page: 1, emit: emit);
   }
 
-  void clearSearch() {
+  Future<void> _clearSearch(Emitter<DiscoverState> emit) async {
     if (!state.isSearching && state.searchQuery.isEmpty) return;
-    _debouncer.cancel();
     _cancelOngoingSearch();
     emit(state.copyWith(searchQuery: '', clearError: true));
-    _loadCategory(state.selectedCategory, page: 1);
+    await _loadCategory(state.selectedCategory, page: 1, emit: emit);
   }
 
-  Future<void> retry() async {
+  Future<void> _retry(Emitter<DiscoverState> emit) async {
     if (state.isSearching) {
-      await _performSearch(state.searchQuery.trim(), page: 1);
+      await _performSearch(state.searchQuery.trim(), page: 1, emit: emit);
     } else if (state.selectedGenreId != null) {
-      await _loadGenre(state.selectedGenreId!, page: 1);
+      await _loadGenre(state.selectedGenreId!, page: 1, emit: emit);
     } else {
-      await _loadCategory(state.selectedCategory, page: 1);
+      await _loadCategory(state.selectedCategory, page: 1, emit: emit);
     }
   }
 
-  Future<void> loadMore() async {
+  Future<void> _onNextPageLoaded(
+    DiscoverNextPageLoaded event,
+    Emitter<DiscoverState> emit,
+  ) async {
     if (!state.hasMore ||
         state.isLoadingMore ||
         state.status == DiscoverStatus.loading) {
@@ -129,15 +153,19 @@ class DiscoverCubit extends Cubit<DiscoverState> {
     emit(state.copyWith(isLoadingMore: true));
 
     if (state.isSearching) {
-      await _performSearch(state.searchQuery.trim(), page: nextPage);
+      await _performSearch(state.searchQuery.trim(), page: nextPage, emit: emit);
     } else if (state.selectedGenreId != null) {
-      await _loadGenre(state.selectedGenreId!, page: nextPage);
+      await _loadGenre(state.selectedGenreId!, page: nextPage, emit: emit);
     } else {
-      await _loadCategory(state.selectedCategory, page: nextPage);
+      await _loadCategory(state.selectedCategory, page: nextPage, emit: emit);
     }
   }
 
-  Future<void> _loadGenre(int genreId, {required int page}) async {
+  Future<void> _loadGenre(
+    int genreId, {
+    required int page,
+    required Emitter<DiscoverState> emit,
+  }) async {
     final requestId = ++_activeRequestId;
     if (page == 1) {
       emit(
@@ -151,7 +179,7 @@ class DiscoverCubit extends Cubit<DiscoverState> {
 
     try {
       final response = await _repository.fetchByGenre(genreId, page: page);
-      if (requestId != _activeRequestId || isClosed) return;
+      if (requestId != _activeRequestId || emit.isDone || isClosed) return;
 
       final combined = page == 1
           ? response.results
@@ -171,13 +199,14 @@ class DiscoverCubit extends Cubit<DiscoverState> {
         ),
       );
     } on AppException catch (e) {
-      if (requestId != _activeRequestId || isClosed) return;
-      _handleError(e, isFirstPage: page == 1);
+      if (requestId != _activeRequestId || emit.isDone || isClosed) return;
+      _handleError(e, isFirstPage: page == 1, emit: emit);
     } catch (_) {
-      if (requestId != _activeRequestId || isClosed) return;
+      if (requestId != _activeRequestId || emit.isDone || isClosed) return;
       _handleError(
         const NetworkException('Unable to load genre movies right now.'),
         isFirstPage: page == 1,
+        emit: emit,
       );
     }
   }
@@ -185,6 +214,7 @@ class DiscoverCubit extends Cubit<DiscoverState> {
   Future<void> _loadCategory(
     DiscoverCategory category, {
     required int page,
+    required Emitter<DiscoverState> emit,
   }) async {
     final requestId = ++_activeRequestId;
     if (page == 1) {
@@ -199,7 +229,7 @@ class DiscoverCubit extends Cubit<DiscoverState> {
 
     try {
       final response = await _repository.fetchByCategory(category, page: page);
-      if (requestId != _activeRequestId || isClosed) return;
+      if (requestId != _activeRequestId || emit.isDone || isClosed) return;
 
       final combined = page == 1
           ? response.results
@@ -219,18 +249,23 @@ class DiscoverCubit extends Cubit<DiscoverState> {
         ),
       );
     } on AppException catch (e) {
-      if (requestId != _activeRequestId || isClosed) return;
-      _handleError(e, isFirstPage: page == 1);
+      if (requestId != _activeRequestId || emit.isDone || isClosed) return;
+      _handleError(e, isFirstPage: page == 1, emit: emit);
     } catch (_) {
-      if (requestId != _activeRequestId || isClosed) return;
+      if (requestId != _activeRequestId || emit.isDone || isClosed) return;
       _handleError(
         const NetworkException('Unable to load movies right now.'),
         isFirstPage: page == 1,
+        emit: emit,
       );
     }
   }
 
-  Future<void> _performSearch(String query, {required int page}) async {
+  Future<void> _performSearch(
+    String query, {
+    required int page,
+    required Emitter<DiscoverState> emit,
+  }) async {
     final requestId = ++_activeRequestId;
     _cancelOngoingSearch();
     _searchCancelToken = CancelToken();
@@ -251,7 +286,7 @@ class DiscoverCubit extends Cubit<DiscoverState> {
         page: page,
         cancelToken: _searchCancelToken,
       );
-      if (requestId != _activeRequestId || isClosed) return;
+      if (requestId != _activeRequestId || emit.isDone || isClosed) return;
 
       final combined = page == 1
           ? response.results
@@ -271,20 +306,28 @@ class DiscoverCubit extends Cubit<DiscoverState> {
         ),
       );
     } on AppException catch (e) {
-      if (e.code == 'cancelled' || requestId != _activeRequestId || isClosed) {
+      if (e.code == 'cancelled' ||
+          requestId != _activeRequestId ||
+          emit.isDone ||
+          isClosed) {
         return;
       }
-      _handleError(e, isFirstPage: page == 1);
+      _handleError(e, isFirstPage: page == 1, emit: emit);
     } catch (_) {
-      if (requestId != _activeRequestId || isClosed) return;
+      if (requestId != _activeRequestId || emit.isDone || isClosed) return;
       _handleError(
         const NetworkException('Search failed. Please try again.'),
         isFirstPage: page == 1,
+        emit: emit,
       );
     }
   }
 
-  void _handleError(AppException e, {required bool isFirstPage}) {
+  void _handleError(
+    AppException e, {
+    required bool isFirstPage,
+    required Emitter<DiscoverState> emit,
+  }) {
     if (!isFirstPage && state.movies.isNotEmpty) {
       emit(
         state.copyWith(
@@ -316,8 +359,8 @@ class DiscoverCubit extends Cubit<DiscoverState> {
 
   @override
   Future<void> close() {
-    _debouncer.dispose();
     _cancelOngoingSearch();
     return super.close();
   }
 }
+

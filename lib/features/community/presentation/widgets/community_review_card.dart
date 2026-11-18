@@ -161,12 +161,61 @@ class CommunityReviewCard extends StatelessWidget {
                                   ],
                                 ],
                               ),
-                              Text(
-                                _formatDate(review.createdAt),
-                                style: const TextStyle(
-                                  color: AppColors.textMuted,
-                                  fontSize: 11,
-                                ),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      _formatDate(review.createdAt),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: AppColors.textMuted,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ),
+                                  if (review.isVerifiedWatch) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 1.5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.success.withValues(
+                                          alpha: 0.14,
+                                        ),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                        border: Border.all(
+                                          color: AppColors.success.withValues(
+                                            alpha: 0.45,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.check_circle_rounded,
+                                            size: 11,
+                                            color: AppColors.success,
+                                          ),
+                                          SizedBox(width: 3),
+                                          Text(
+                                            'Watched',
+                                            style: TextStyle(
+                                              color: AppColors.success,
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ],
                           ),
@@ -250,14 +299,17 @@ class CommunityReviewCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 10),
-          Text(
-            review.comment,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-              height: 1.45,
+          if (review.hasSpoilers)
+            _SpoilerComment(comment: review.comment)
+          else
+            Text(
+              review.comment,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+                height: 1.45,
+              ),
             ),
-          ),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -384,6 +436,105 @@ class CommunityReviewCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SpoilerComment extends StatefulWidget {
+  const _SpoilerComment({required this.comment});
+
+  final String comment;
+
+  @override
+  State<_SpoilerComment> createState() => _SpoilerCommentState();
+}
+
+class _SpoilerCommentState extends State<_SpoilerComment> {
+  bool _revealed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_revealed) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.comment,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 6),
+          InkWell(
+            onTap: () => setState(() => _revealed = false),
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: AppColors.surfaceBorder),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.visibility_off_outlined,
+                    size: 12,
+                    color: AppColors.textMuted,
+                  ),
+                  SizedBox(width: 4),
+                  Text(
+                    'Hide spoilers',
+                    style: TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return InkWell(
+      onTap: () => setState(() => _revealed = true),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.khakiBeige.withValues(alpha: 0.4),
+          ),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.visibility_off_rounded,
+              size: 16,
+              color: AppColors.khakiBeige,
+            ),
+            SizedBox(width: 8),
+            Text(
+              'Contains Spoilers · Tap to reveal',
+              style: TextStyle(
+                color: AppColors.khakiBeige,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

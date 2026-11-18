@@ -9,7 +9,7 @@ import '../../../../shared/models/movie_summary.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../community/data/models/movie_review_model.dart';
 import '../../../community/data/models/user_profile_model.dart';
-import '../../../community/presentation/cubit/community_cubit.dart';
+import '../../../community/presentation/bloc/community_bloc.dart';
 import '../../../community/presentation/widgets/edit_profile_dialog.dart';
 import '../../../community/presentation/widgets/user_avatar_widget.dart';
 import '../../../watchlist/presentation/cubit/watchlist_cubit.dart';
@@ -28,25 +28,25 @@ class ProfileScreen extends StatelessWidget {
       initialProfile: profile,
     );
     if (result != null && context.mounted) {
-      await context.read<CommunityCubit>().updateProfile(
-        displayName: result.displayName,
-        bio: result.bio,
-        avatarKey: result.avatarKey,
-        photoBase64: result.photoBase64,
-        clearPhoto: result.clearPhoto,
+      context.read<CommunityBloc>().add(
+        CommunityProfileUpdated(
+          displayName: result.displayName,
+          bio: result.bio,
+          avatarKey: result.avatarKey,
+          photoBase64: result.photoBase64,
+          clearPhoto: result.clearPhoto,
+        ),
       );
-      if (context.mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(const SnackBar(content: Text('Profile updated.')));
-      }
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('Profile updated.')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final authState = context.watch<AuthCubit>().state;
-    final communityState = context.watch<CommunityCubit>().state;
+    final communityState = context.watch<CommunityBloc>().state;
     final watchlistState = context.watch<WatchlistCubit>().state;
 
     final user = authState.user;

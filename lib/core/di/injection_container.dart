@@ -5,10 +5,10 @@ import '../../features/ai_chat/presentation/cubit/ai_chat_cubit.dart';
 import '../../features/auth/data/repositories/auth_repository.dart';
 import '../../features/auth/presentation/cubit/auth_cubit.dart';
 import '../../features/community/data/repositories/community_repository.dart';
-import '../../features/community/presentation/cubit/community_cubit.dart';
+import '../../features/community/presentation/bloc/community_bloc.dart';
 import '../../features/discover/data/datasources/tmdb_remote_data_source.dart';
 import '../../features/discover/data/repositories/discover_repository.dart';
-import '../../features/discover/presentation/cubit/discover_cubit.dart';
+import '../../features/discover/presentation/bloc/discover_bloc.dart';
 import '../../features/movie_details/data/repositories/movie_details_repository.dart';
 import '../../features/movie_details/presentation/cubit/movie_details_cubit.dart';
 import '../../features/watchlist/data/repositories/watchlist_repository.dart';
@@ -44,10 +44,10 @@ Future<void> configureDependencies({
   sl.registerLazySingleton<AiChatRepository>(() => AiChatRepository());
   sl.registerLazySingleton<CommunityRepository>(() => CommunityRepository());
 
-  // Cubits
+  // Cubits & BLoCs
   sl.registerFactory<AuthCubit>(() => AuthCubit(sl<AuthRepository>()));
-  sl.registerFactory<DiscoverCubit>(
-    () => DiscoverCubit(
+  sl.registerFactory<DiscoverBloc>(
+    () => DiscoverBloc(
       sl<DiscoverRepository>(),
       preferencesService: sl<PreferencesService>(),
     ),
@@ -59,7 +59,7 @@ Future<void> configureDependencies({
     () => WatchlistCubit(sl<WatchlistRepository>()),
   );
   sl.registerFactory<AiChatCubit>(() => AiChatCubit(sl<AiChatRepository>()));
-  sl.registerFactory<CommunityCubit>(
-    () => CommunityCubit(sl<CommunityRepository>()),
+  sl.registerFactory<CommunityBloc>(
+    () => CommunityBloc(sl<CommunityRepository>()),
   );
 }

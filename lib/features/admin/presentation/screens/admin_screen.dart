@@ -11,7 +11,7 @@ import '../../../community/data/models/movie_review_model.dart';
 import '../../../community/data/models/review_report_model.dart';
 import '../../../community/data/models/user_profile_model.dart';
 import '../../../community/data/repositories/community_repository.dart';
-import '../../../community/presentation/cubit/community_cubit.dart';
+import '../../../community/presentation/bloc/community_bloc.dart';
 import '../../../community/presentation/widgets/user_avatar_widget.dart';
 
 /// Admin & Moderator panel (`/admin`):
@@ -22,11 +22,11 @@ class AdminScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin = context.select<CommunityCubit, bool>(
-      (c) => c.state.isAdmin,
+    final isAdmin = context.select<CommunityBloc, bool>(
+      (b) => b.state.isAdmin,
     );
-    final isModerator = context.select<CommunityCubit, bool>(
-      (c) => c.state.isModerator,
+    final isModerator = context.select<CommunityBloc, bool>(
+      (b) => b.state.isModerator,
     );
     final isStaff = isAdmin || isModerator;
 

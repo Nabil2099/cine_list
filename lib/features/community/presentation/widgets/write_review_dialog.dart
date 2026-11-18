@@ -3,10 +3,15 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 
 class WriteReviewResult {
-  const WriteReviewResult({required this.rating, required this.comment});
+  const WriteReviewResult({
+    required this.rating,
+    required this.comment,
+    this.hasSpoilers = false,
+  });
 
   final int rating;
   final String comment;
+  final bool hasSpoilers;
 }
 
 /// Dialog for writing or updating a public movie review.
@@ -16,17 +21,20 @@ class WriteReviewDialog extends StatefulWidget {
     required this.movieTitle,
     this.initialRating = 5,
     this.initialComment = '',
+    this.initialHasSpoilers = false,
   });
 
   final String movieTitle;
   final int initialRating;
   final String initialComment;
+  final bool initialHasSpoilers;
 
   static Future<WriteReviewResult?> show(
     BuildContext context, {
     required String movieTitle,
     int initialRating = 5,
     String initialComment = '',
+    bool initialHasSpoilers = false,
   }) {
     return showDialog<WriteReviewResult>(
       context: context,
@@ -34,6 +42,7 @@ class WriteReviewDialog extends StatefulWidget {
         movieTitle: movieTitle,
         initialRating: initialRating,
         initialComment: initialComment,
+        initialHasSpoilers: initialHasSpoilers,
       ),
     );
   }
@@ -45,12 +54,14 @@ class WriteReviewDialog extends StatefulWidget {
 class _WriteReviewDialogState extends State<WriteReviewDialog> {
   final _formKey = GlobalKey<FormState>();
   late int _rating;
+  late bool _hasSpoilers;
   late final TextEditingController _commentController;
 
   @override
   void initState() {
     super.initState();
     _rating = widget.initialRating.clamp(1, 5);
+    _hasSpoilers = widget.initialHasSpoilers;
     _commentController = TextEditingController(text: widget.initialComment);
   }
 
@@ -109,6 +120,28 @@ class _WriteReviewDialogState extends State<WriteReviewDialog> {
                 return null;
               },
             ),
+            const SizedBox(height: 6),
+            SwitchListTile.adaptive(
+              value: _hasSpoilers,
+              onChanged: (val) => setState(() => _hasSpoilers = val),
+              contentPadding: EdgeInsets.zero,
+              activeColor: AppColors.pacificBlue,
+              title: const Text(
+                'Contains Spoilers',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: const Text(
+                'Hide review text until readers tap to reveal',
+                style: TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 11.5,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -128,6 +161,7 @@ class _WriteReviewDialogState extends State<WriteReviewDialog> {
                 WriteReviewResult(
                   rating: _rating,
                   comment: _commentController.text.trim(),
+                  hasSpoilers: _hasSpoilers,
                 ),
               );
             }

@@ -11,8 +11,7 @@ import '../../features/auth/presentation/cubit/auth_state.dart';
 import '../../features/auth/presentation/screens/auth_screen.dart';
 import '../../features/auth/presentation/screens/verify_email_screen.dart';
 import '../../features/community/presentation/screens/community_screen.dart';
-import '../../features/discover/presentation/cubit/discover_cubit.dart';
-import '../../features/discover/presentation/cubit/discover_state.dart';
+import '../../features/discover/presentation/bloc/discover_bloc.dart';
 import '../../features/discover/presentation/screens/discover_screen.dart';
 import '../../features/landing/presentation/screens/web_landing_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
@@ -23,7 +22,7 @@ import 'movie_details_route.dart';
 
 /// Application GoRouter configuration with auth, splash, and shell branches.
 class AppRouter {
-  AppRouter({required this.authCubit, required this.discoverCubit}) {
+  AppRouter({required this.authCubit, required this.discoverBloc}) {
     _minSplashTimer = Timer(const Duration(milliseconds: 1800), () {
       _minDurationElapsed = true;
       _refreshNotifier.trigger();
@@ -34,13 +33,13 @@ class AppRouter {
     });
 
     _authSub = authCubit.stream.listen((_) => _refreshNotifier.trigger());
-    _discoverSub = discoverCubit.stream.listen(
+    _discoverSub = discoverBloc.stream.listen(
       (_) => _refreshNotifier.trigger(),
     );
   }
 
   final AuthCubit authCubit;
-  final DiscoverCubit discoverCubit;
+  final DiscoverBloc discoverBloc;
   final _refreshNotifier = _RouterRefreshNotifier();
 
   late final Timer _minSplashTimer;
@@ -56,7 +55,7 @@ class AppRouter {
     refreshListenable: _refreshNotifier,
     redirect: (context, state) {
       final authStatus = authCubit.state.status;
-      final discoverStatus = discoverCubit.state.status;
+      final discoverStatus = discoverBloc.state.status;
       final location = state.matchedLocation;
 
       final isAuthResolved = authStatus != AuthStatus.initial;

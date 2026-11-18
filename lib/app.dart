@@ -8,11 +8,11 @@ import 'core/theme/app_theme.dart';
 import 'features/ai_chat/presentation/cubit/ai_chat_cubit.dart';
 import 'features/auth/presentation/cubit/auth_cubit.dart';
 import 'features/auth/presentation/cubit/auth_state.dart';
-import 'features/community/presentation/cubit/community_cubit.dart';
-import 'features/discover/presentation/cubit/discover_cubit.dart';
+import 'features/community/presentation/bloc/community_bloc.dart';
+import 'features/discover/presentation/bloc/discover_bloc.dart';
 import 'features/watchlist/presentation/cubit/watchlist_cubit.dart';
 
-/// Root CineList widget wiring global Cubits and GoRouter navigation.
+/// Root CineList widget wiring global BLoCs/Cubits and GoRouter navigation.
 class CineListApp extends StatefulWidget {
   const CineListApp({super.key});
 
@@ -22,32 +22,34 @@ class CineListApp extends StatefulWidget {
 
 class _CineListAppState extends State<CineListApp> {
   late final AuthCubit _authCubit;
-  late final DiscoverCubit _discoverCubit;
+  late final DiscoverBloc _discoverBloc;
   late final WatchlistCubit _watchlistCubit;
   late final AiChatCubit _aiChatCubit;
-  late final CommunityCubit _communityCubit;
+  late final CommunityBloc _communityBloc;
   late final AppRouter _appRouter;
 
   @override
   void initState() {
     super.initState();
     _authCubit = sl<AuthCubit>();
-    _discoverCubit = sl<DiscoverCubit>()..loadInitial();
+    _discoverBloc = sl<DiscoverBloc>()..add(const DiscoverInitialLoaded());
     _watchlistCubit = sl<WatchlistCubit>();
     _aiChatCubit = sl<AiChatCubit>();
-    _communityCubit = sl<CommunityCubit>();
+    _communityBloc = sl<CommunityBloc>();
     _appRouter = AppRouter(
       authCubit: _authCubit,
-      discoverCubit: _discoverCubit,
+      discoverBloc: _discoverBloc,
     );
 
     final currentUser = _authCubit.state.user;
     if (currentUser != null) {
       _watchlistCubit.bindUser(currentUser.uid);
-      _communityCubit.bindUser(
-        uid: currentUser.uid,
-        email: currentUser.email,
-        displayName: currentUser.displayName,
+      _communityBloc.add(
+        CommunityUserBound(
+          uid: currentUser.uid,
+          email: currentUser.email,
+          displayName: currentUser.displayName,
+        ),
       );
     }
   }
@@ -56,10 +58,10 @@ class _CineListAppState extends State<CineListApp> {
   void dispose() {
     _appRouter.dispose();
     _authCubit.close();
-    _discoverCubit.close();
+    _discoverBloc.close();
     _watchlistCubit.close();
     _aiChatCubit.close();
-    _communityCubit.close();
+    _communityBloc.close();
     super.dispose();
   }
 
@@ -68,10 +70,10 @@ class _CineListAppState extends State<CineListApp> {
     return MultiBlocProvider(
       providers: [
         BlocProvider<AuthCubit>.value(value: _authCubit),
-        BlocProvider<DiscoverCubit>.value(value: _discoverCubit),
+        BlocProvider<DiscoverBloc>.value(value: _discoverBloc),
         BlocProvider<WatchlistCubit>.value(value: _watchlistCubit),
         BlocProvider<AiChatCubit>.value(value: _aiChatCubit),
-        BlocProvider<CommunityCubit>.value(value: _communityCubit),
+        BlocProvider<CommunityBloc>.value(value: _communityBloc),
       ],
       child: BlocListener<AuthCubit, AuthState>(
         listenWhen: (prev, curr) =>
@@ -80,10 +82,12 @@ class _CineListAppState extends State<CineListApp> {
             prev.user?.displayName != curr.user?.displayName,
         listener: (context, state) {
           _watchlistCubit.bindUser(state.user?.uid);
-          _communityCubit.bindUser(
-            uid: state.user?.uid,
-            email: state.user?.email,
-            displayName: state.user?.displayName,
+          _communityBloc.add(
+            CommunityUserBound(
+              uid: state.user?.uid,
+              email: state.user?.email,
+              displayName: state.user?.displayName,
+            ),
           );
         },
         child: MaterialApp.router(

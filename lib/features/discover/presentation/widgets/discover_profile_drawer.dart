@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../community/data/models/user_profile_model.dart';
-import '../../../community/presentation/cubit/community_cubit.dart';
+import '../../../community/presentation/bloc/community_bloc.dart';
 import '../../../community/presentation/widgets/user_avatar_widget.dart';
 import '../../../watchlist/presentation/cubit/watchlist_cubit.dart';
 
@@ -16,7 +16,7 @@ class DiscoverProfileDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authUser = context.watch<AuthCubit>().state.user;
-    final communityState = context.watch<CommunityCubit>().state;
+    final communityState = context.watch<CommunityBloc>().state;
     final watchlistState = context.watch<WatchlistCubit>().state;
 
     final uid = authUser?.uid ?? '';

@@ -5,6 +5,16 @@ import '../../data/models/user_profile_model.dart';
 
 enum CommunityStatus { initial, loading, loaded, error }
 
+enum CommunitySortOption {
+  latest('Latest'),
+  mostHelpful('Most Helpful'),
+  highestRated('Highest Rated');
+
+  const CommunitySortOption(this.label);
+
+  final String label;
+}
+
 class CommunityState extends Equatable {
   const CommunityState({
     this.status = CommunityStatus.initial,
@@ -13,6 +23,9 @@ class CommunityState extends Equatable {
     this.userProfilesByUid = const {},
     this.adminUids = const {},
     this.moderatorUids = const {},
+    this.sortOption = CommunitySortOption.latest,
+    this.followingOnly = false,
+    this.searchQuery = '',
     this.isAdmin = false,
     this.isModerator = false,
     this.isBanned = false,
@@ -27,17 +40,61 @@ class CommunityState extends Equatable {
   final Map<String, UserProfileModel> userProfilesByUid;
   final Set<String> adminUids;
   final Set<String> moderatorUids;
+  final CommunitySortOption sortOption;
+  final bool followingOnly;
+  final String searchQuery;
   final bool isAdmin;
   final bool isModerator;
   final bool isBanned;
   final bool isSubmitting;
-
-  bool get isStaff => isAdmin || isModerator;
   final String? errorMessage;
   final String? feedbackMessage;
 
+  bool get isStaff => isAdmin || isModerator;
+
   List<MovieReviewModel> reviewsForMovie(int movieId) {
     return reviews.where((r) => r.movieId == movieId).toList();
+  }
+
+  List<MovieReviewModel> get filteredReviews {
+    final following = profile?.followingUids.toSet() ?? const <String>{};
+    final query = searchQuery.trim().toLowerCase();
+
+    var list = reviews.where((r) {
+      if (followingOnly && !following.contains(r.uid)) return false;
+      if (query.isNotEmpty) {
+        final inMovie = r.movieTitle.toLowerCase().contains(query);
+        final inAuthor = r.authorName.toLowerCase().contains(query);
+        final inComment = r.comment.toLowerCase().contains(query);
+        if (!inMovie && !inAuthor && !inComment) return false;
+      }
+      return true;
+    }).toList();
+
+    switch (sortOption) {
+      case CommunitySortOption.latest:
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      case CommunitySortOption.mostHelpful:
+        list.sort((a, b) {
+          final scoreA = a.likedBy.length - a.dislikedBy.length;
+          final scoreB = b.likedBy.length - b.dislikedBy.length;
+          final cmp = scoreB.compareTo(scoreA);
+          return cmp != 0 ? cmp : b.createdAt.compareTo(a.createdAt);
+        });
+      case CommunitySortOption.highestRated:
+        list.sort((a, b) {
+          final cmp = b.rating.compareTo(a.rating);
+          return cmp != 0 ? cmp : b.createdAt.compareTo(a.createdAt);
+        });
+    }
+
+    return list;
+  }
+
+  List<UserProfileModel> get topCritics {
+    final list = userProfilesByUid.values.toList();
+    list.sort((a, b) => b.reputation.compareTo(a.reputation));
+    return list.take(8).toList();
   }
 
   CommunityState copyWith({
@@ -48,6 +105,9 @@ class CommunityState extends Equatable {
     Map<String, UserProfileModel>? userProfilesByUid,
     Set<String>? adminUids,
     Set<String>? moderatorUids,
+    CommunitySortOption? sortOption,
+    bool? followingOnly,
+    String? searchQuery,
     bool? isAdmin,
     bool? isModerator,
     bool? isBanned,
@@ -64,6 +124,9 @@ class CommunityState extends Equatable {
       userProfilesByUid: userProfilesByUid ?? this.userProfilesByUid,
       adminUids: adminUids ?? this.adminUids,
       moderatorUids: moderatorUids ?? this.moderatorUids,
+      sortOption: sortOption ?? this.sortOption,
+      followingOnly: followingOnly ?? this.followingOnly,
+      searchQuery: searchQuery ?? this.searchQuery,
       isAdmin: isAdmin ?? this.isAdmin,
       isModerator: isModerator ?? this.isModerator,
       isBanned: isBanned ?? this.isBanned,
@@ -83,6 +146,9 @@ class CommunityState extends Equatable {
     userProfilesByUid,
     adminUids,
     moderatorUids,
+    sortOption,
+    followingOnly,
+    searchQuery,
     isAdmin,
     isModerator,
     isBanned,

@@ -16,6 +16,8 @@ class MovieReviewModel extends Equatable {
     required this.createdAt,
     this.likedBy = const [],
     this.dislikedBy = const [],
+    this.hasSpoilers = false,
+    this.isVerifiedWatch = false,
   });
 
   factory MovieReviewModel.fromMap(String id, Map<String, dynamic> map) {
@@ -41,6 +43,8 @@ class MovieReviewModel extends Equatable {
       createdAt: _parseTimestamp(map['createdAt']) ?? DateTime.now(),
       likedBy: likedBy,
       dislikedBy: dislikedBy,
+      hasSpoilers: map['hasSpoilers'] == true,
+      isVerifiedWatch: map['isVerifiedWatch'] == true,
     );
   }
 
@@ -56,6 +60,8 @@ class MovieReviewModel extends Equatable {
   final DateTime createdAt;
   final List<String> likedBy;
   final List<String> dislikedBy;
+  final bool hasSpoilers;
+  final bool isVerifiedWatch;
 
   bool isLikedBy(String? uid) => uid != null && likedBy.contains(uid);
   bool isDislikedBy(String? uid) => uid != null && dislikedBy.contains(uid);
@@ -75,6 +81,8 @@ class MovieReviewModel extends Equatable {
       'createdAt': Timestamp.fromDate(createdAt),
       'likedBy': likedBy,
       'dislikedBy': dislikedBy,
+      'hasSpoilers': hasSpoilers,
+      'isVerifiedWatch': isVerifiedWatch,
     };
   }
 
@@ -82,6 +90,30 @@ class MovieReviewModel extends Equatable {
     if (value is Timestamp) return value.toDate();
     if (value is DateTime) return value;
     return null;
+  }
+
+  MovieReviewModel copyWith({
+    List<String>? likedBy,
+    List<String>? dislikedBy,
+    bool? hasSpoilers,
+    bool? isVerifiedWatch,
+  }) {
+    return MovieReviewModel(
+      id: id,
+      movieId: movieId,
+      movieTitle: movieTitle,
+      posterPath: posterPath,
+      uid: uid,
+      authorName: authorName,
+      authorAvatarKey: authorAvatarKey,
+      rating: rating,
+      comment: comment,
+      createdAt: createdAt,
+      likedBy: likedBy ?? this.likedBy,
+      dislikedBy: dislikedBy ?? this.dislikedBy,
+      hasSpoilers: hasSpoilers ?? this.hasSpoilers,
+      isVerifiedWatch: isVerifiedWatch ?? this.isVerifiedWatch,
+    );
   }
 
   @override
@@ -98,5 +130,7 @@ class MovieReviewModel extends Equatable {
     createdAt,
     likedBy,
     dislikedBy,
+    hasSpoilers,
+    isVerifiedWatch,
   ];
 }

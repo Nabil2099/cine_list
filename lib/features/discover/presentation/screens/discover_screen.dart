@@ -12,10 +12,9 @@ import '../../../../core/widgets/loading_view.dart';
 import '../../../../shared/models/movie_summary.dart';
 import '../../../../shared/widgets/movie_card.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
-import '../../../community/presentation/cubit/community_cubit.dart';
+import '../../../community/presentation/bloc/community_bloc.dart';
 import '../../../watchlist/presentation/cubit/watchlist_cubit.dart';
-import '../cubit/discover_cubit.dart';
-import '../cubit/discover_state.dart';
+import '../bloc/discover_bloc.dart';
 import '../widgets/category_tabs.dart';
 import '../widgets/discover_profile_drawer.dart';
 import '../widgets/featured_movie_card.dart';
@@ -63,8 +62,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final authDisplayName = context.select<AuthCubit, String?>(
       (cubit) => cubit.state.user?.displayName,
     );
-    final profileDisplayName = context.select<CommunityCubit, String?>(
-      (cubit) => cubit.state.profile?.displayName,
+    final profileDisplayName = context.select<CommunityBloc, String?>(
+      (bloc) => bloc.state.profile?.displayName,
     );
     final greetingName =
         (profileDisplayName != null && profileDisplayName.trim().isNotEmpty)
@@ -89,7 +88,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           child: RefreshIndicator(
             color: AppColors.pacificBlue,
             backgroundColor: AppColors.surfaceElevated,
-            onRefresh: () => context.read<DiscoverCubit>().retry(),
+            onRefresh: () async {
+              final bloc = context.read<DiscoverBloc>();
+              bloc.add(const DiscoverRetried());
+              await bloc.stream.firstWhere(
+                (s) => s.status != DiscoverStatus.loading,
+              );
+            },
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
@@ -107,7 +112,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                   sliver: SliverToBoxAdapter(
-                    child: BlocBuilder<DiscoverCubit, DiscoverState>(
+                    child: BlocBuilder<DiscoverBloc, DiscoverState>(
                       buildWhen: (prev, curr) =>
                           prev.searchQuery != curr.searchQuery ||
                           prev.selectedCategory != curr.selectedCategory ||
@@ -124,11 +129,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                               controller: _searchController,
                               hasText: state.searchQuery.isNotEmpty,
                               onChanged: (q) => context
-                                  .read<DiscoverCubit>()
-                                  .onSearchChanged(q),
+                                  .read<DiscoverBloc>()
+                                  .add(DiscoverSearchChanged(q)),
                               onClear: () {
                                 _searchController.clear();
-                                context.read<DiscoverCubit>().clearSearch();
+                                context.read<DiscoverBloc>().add(
+                                  const DiscoverSearchCleared(),
+                                );
                               },
                             ),
                             const SizedBox(height: 14),
@@ -139,8 +146,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                   state.selectedGenreId != null,
                               onSelected: (cat) {
                                 _searchController.clear();
-                                context.read<DiscoverCubit>().selectCategory(
-                                  cat,
+                                context.read<DiscoverBloc>().add(
+                                  DiscoverCategorySelected(cat),
                                 );
                               },
                             ),
@@ -150,8 +157,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                               isSearchActive: state.isSearching,
                               onSelected: (genreId) {
                                 _searchController.clear();
-                                context.read<DiscoverCubit>().selectGenre(
-                                  genreId,
+                                context.read<DiscoverBloc>().add(
+                                  DiscoverGenreSelected(genreId),
                                 );
                               },
                             ),
@@ -161,7 +168,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     ),
                   ),
                 ),
-                BlocBuilder<DiscoverCubit, DiscoverState>(
+                BlocBuilder<DiscoverBloc, DiscoverState>(
                   builder: (context, state) {
                     if (state.status == DiscoverStatus.loading ||
                         state.status == DiscoverStatus.initial) {
@@ -183,7 +190,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           message:
                               state.errorMessage ??
                               'Unable to fetch movies right now.',
-                          onRetry: () => context.read<DiscoverCubit>().retry(),
+                          onRetry: () => context.read<DiscoverBloc>().add(
+                            const DiscoverRetried(),
+                          ),
                         ),
                       );
                     }
@@ -205,7 +214,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           onAction: state.isSearching
                               ? () {
                                   _searchController.clear();
-                                  context.read<DiscoverCubit>().clearSearch();
+                                  context.read<DiscoverBloc>().add(
+                                    const DiscoverSearchCleared(),
+                                  );
                                 }
                               : null,
                         ),
@@ -455,7 +466,9 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
                       ),
                     )
                   : OutlinedButton.icon(
-                      onPressed: () => context.read<DiscoverCubit>().loadMore(),
+                      onPressed: () => context.read<DiscoverBloc>().add(
+                        const DiscoverNextPageLoaded(),
+                      ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.pacificBlue,
                         side: const BorderSide(color: AppColors.pacificBlue),

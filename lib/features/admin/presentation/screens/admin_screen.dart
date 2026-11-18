@@ -6,6 +6,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/empty_state_view.dart';
+import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../community/data/models/movie_review_model.dart';
 import '../../../community/data/models/review_report_model.dart';
 import '../../../community/data/models/user_profile_model.dart';
@@ -13,31 +14,53 @@ import '../../../community/data/repositories/community_repository.dart';
 import '../../../community/presentation/cubit/community_cubit.dart';
 import '../../../community/presentation/widgets/user_avatar_widget.dart';
 
-/// Admin moderation panel (`/admin`) for reviewing reports, deleting reviews,
-/// and removing/banning offending users.
-class AdminScreen extends StatefulWidget {
+/// Admin & Moderator panel (`/admin`):
+/// - One Admin has full control: manage Moderators, delete/ban users, handle reports & reviews.
+/// - Moderators can handle reports and delete offending reviews.
+class AdminScreen extends StatelessWidget {
   const AdminScreen({super.key});
 
   @override
-  State<AdminScreen> createState() => _AdminScreenState();
+  Widget build(BuildContext context) {
+    final isAdmin = context.select<CommunityCubit, bool>(
+      (c) => c.state.isAdmin,
+    );
+    final isModerator = context.select<CommunityCubit, bool>(
+      (c) => c.state.isModerator,
+    );
+    final isStaff = isAdmin || isModerator;
+
+    if (!isStaff) {
+      return Scaffold(
+        backgroundColor: AppColors.black,
+        appBar: AppBar(title: const Text('Moderation Panel')),
+        body: EmptyStateView(
+          icon: Icons.lock_outline_rounded,
+          title: 'Staff Access Required',
+          message:
+              'This panel is restricted to the CineList Admin and Moderators.',
+          actionLabel: 'Go Back',
+          onAction: () =>
+              context.canPop() ? context.pop() : context.go('/discover'),
+        ),
+      );
+    }
+
+    return _StaffPanelView(isAdmin: isAdmin);
+  }
 }
 
-class _AdminScreenState extends State<AdminScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+class _StaffPanelView extends StatefulWidget {
+  const _StaffPanelView({required this.isAdmin});
+
+  final bool isAdmin;
+
+  @override
+  State<_StaffPanelView> createState() => _StaffPanelViewState();
+}
+
+class _StaffPanelViewState extends State<_StaffPanelView> {
   final _repo = sl<CommunityRepository>();
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
 
   Future<void> _confirmDeleteReview(String reviewId, String title) async {
     final confirm = await showDialog<bool>(
@@ -113,71 +136,90 @@ class _AdminScreenState extends State<AdminScreen>
     }
   }
 
+  Future<void> _toggleModerator(
+    String uid,
+    String displayName,
+    bool currentlyMod,
+  ) async {
+    try {
+      await _repo.setModerator(uid: uid, makeModerator: !currentlyMod);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              currentlyMod
+                  ? 'Removed Moderator role from "$displayName".'
+                  : 'Promoted "$displayName" to Moderator.',
+            ),
+          ),
+        );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isAdmin = context.select<CommunityCubit, bool>(
-      (c) => c.state.isAdmin,
+    final tabCount = widget.isAdmin ? 3 : 2;
+    final currentUid = context.select<AuthCubit, String?>(
+      (c) => c.state.user?.uid,
     );
 
-    if (!isAdmin) {
-      return Scaffold(
+    return DefaultTabController(
+      length: tabCount,
+      child: Scaffold(
         backgroundColor: AppColors.black,
-        appBar: AppBar(title: const Text('Admin Panel')),
-        body: EmptyStateView(
-          icon: Icons.lock_outline_rounded,
-          title: 'Admin Access Required',
-          message: 'This panel is restricted to CineList administrators.',
-          actionLabel: 'Go Back',
-          onAction: () =>
-              context.canPop() ? context.pop() : context.go('/discover'),
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: AppColors.black,
-      appBar: AppBar(
-        backgroundColor: AppColors.black,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go('/community'),
-        ),
-        title: const Text(
-          'Admin Moderation Panel',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: AppColors.pacificBlue,
-          labelColor: AppColors.pacificBlue,
-          unselectedLabelColor: AppColors.textSecondary,
-          tabs: const [
-            Tab(text: 'Reports'),
-            Tab(text: 'Reviews'),
-            Tab(text: 'Users'),
-          ],
-        ),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: AppConstants.maxContentWidth,
+        appBar: AppBar(
+          backgroundColor: AppColors.black,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            onPressed: () =>
+                context.canPop() ? context.pop() : context.go('/community'),
           ),
-          child: TabBarView(
-            controller: _tabController,
-            children: [
-              _ReportsTab(
-                repo: _repo,
-                onDeleteReview: _confirmDeleteReview,
-                onBanUser: _confirmBanAndDeleteUser,
-              ),
-              _AllReviewsTab(
-                repo: _repo,
-                onDeleteReview: _confirmDeleteReview,
-              ),
-              _UsersTab(repo: _repo, onBanUser: _confirmBanAndDeleteUser),
+          title: Text(
+            widget.isAdmin ? 'Admin Moderation Panel' : 'Moderation Panel',
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          bottom: TabBar(
+            indicatorColor: AppColors.pacificBlue,
+            labelColor: AppColors.pacificBlue,
+            unselectedLabelColor: AppColors.textSecondary,
+            tabs: [
+              const Tab(text: 'Reports'),
+              const Tab(text: 'Reviews'),
+              if (widget.isAdmin) const Tab(text: 'Users & Mods'),
             ],
+          ),
+        ),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: AppConstants.maxContentWidth,
+            ),
+            child: TabBarView(
+              children: [
+                _ReportsTab(
+                  repo: _repo,
+                  isAdmin: widget.isAdmin,
+                  onDeleteReview: _confirmDeleteReview,
+                  onBanUser: _confirmBanAndDeleteUser,
+                ),
+                _AllReviewsTab(
+                  repo: _repo,
+                  onDeleteReview: _confirmDeleteReview,
+                ),
+                if (widget.isAdmin)
+                  _UsersTab(
+                    repo: _repo,
+                    currentAdminUid: currentUid,
+                    onBanUser: _confirmBanAndDeleteUser,
+                    onToggleModerator: _toggleModerator,
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -188,11 +230,13 @@ class _AdminScreenState extends State<AdminScreen>
 class _ReportsTab extends StatelessWidget {
   const _ReportsTab({
     required this.repo,
+    required this.isAdmin,
     required this.onDeleteReview,
     required this.onBanUser,
   });
 
   final CommunityRepository repo;
+  final bool isAdmin;
   final Future<void> Function(String reviewId, String title) onDeleteReview;
   final Future<void> Function(String uid, String displayName) onBanUser;
 
@@ -323,19 +367,20 @@ class _ReportsTab extends StatelessWidget {
                           style: TextStyle(color: AppColors.error),
                         ),
                       ),
-                      OutlinedButton.icon(
-                        onPressed: () =>
-                            onBanUser(r.reportedUid, r.reportedAuthorName),
-                        icon: const Icon(
-                          Icons.person_off_outlined,
-                          size: 16,
-                          color: AppColors.error,
+                      if (isAdmin)
+                        OutlinedButton.icon(
+                          onPressed: () =>
+                              onBanUser(r.reportedUid, r.reportedAuthorName),
+                          icon: const Icon(
+                            Icons.person_off_outlined,
+                            size: 16,
+                            color: AppColors.error,
+                          ),
+                          label: const Text(
+                            'Ban User',
+                            style: TextStyle(color: AppColors.error),
+                          ),
                         ),
-                        label: const Text(
-                          'Ban User',
-                          style: TextStyle(color: AppColors.error),
-                        ),
-                      ),
                       if (r.isPending)
                         TextButton(
                           onPressed: () => repo.resolveReport(r.id),
@@ -428,65 +473,150 @@ class _AllReviewsTab extends StatelessWidget {
 }
 
 class _UsersTab extends StatelessWidget {
-  const _UsersTab({required this.repo, required this.onBanUser});
+  const _UsersTab({
+    required this.repo,
+    required this.currentAdminUid,
+    required this.onBanUser,
+    required this.onToggleModerator,
+  });
 
   final CommunityRepository repo;
+  final String? currentAdminUid;
   final Future<void> Function(String uid, String displayName) onBanUser;
+  final Future<void> Function(
+    String uid,
+    String displayName,
+    bool currentlyMod,
+  )
+  onToggleModerator;
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<UserProfileModel>>(
-      stream: repo.watchAllUsers(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final users = snapshot.data ?? const [];
-        if (users.isEmpty) {
-          return const EmptyStateView(
-            icon: Icons.people_outline_rounded,
-            title: 'No user profiles',
-            message: 'Registered user profiles will appear here.',
-          );
-        }
+    return StreamBuilder<Set<String>>(
+      stream: repo.watchModeratorUids(),
+      builder: (context, modSnap) {
+        final modUids = modSnap.data ?? const <String>{};
 
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: users.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 10),
-          itemBuilder: (context, index) {
-            final u = users[index];
-            return ListTile(
-              tileColor: AppColors.surfaceCard,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(color: AppColors.surfaceBorder),
-              ),
-              leading: UserAvatar(avatarKey: u.avatarKey, radius: 18),
-              title: Text(
-                u.displayName,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              subtitle: Text(
-                u.bio.isNotEmpty ? '${u.bio}\nUID: ${u.uid}' : 'UID: ${u.uid}',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                ),
-              ),
-              trailing: IconButton(
-                tooltip: 'Delete & Ban User',
-                icon: const Icon(
-                  Icons.person_off_outlined,
-                  color: AppColors.error,
-                ),
-                onPressed: () => onBanUser(u.uid, u.displayName),
-              ),
+        return StreamBuilder<List<UserProfileModel>>(
+          stream: repo.watchAllUsers(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final users = snapshot.data ?? const [];
+            if (users.isEmpty) {
+              return const EmptyStateView(
+                icon: Icons.people_outline_rounded,
+                title: 'No user profiles',
+                message: 'Registered user profiles will appear here.',
+              );
+            }
+
+            return ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: users.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                final u = users[index];
+                final isSelfAdmin = u.uid == currentAdminUid;
+                final isMod = modUids.contains(u.uid);
+
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceCard,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.surfaceBorder),
+                  ),
+                  child: Row(
+                    children: [
+                      UserAvatar(
+                        avatarKey: u.avatarKey,
+                        photoBase64: u.photoBase64,
+                        reputation: u.reputation,
+                        isAdmin: isSelfAdmin,
+                        isModerator: isMod,
+                        radius: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                Text(
+                                  u.displayName,
+                                  style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                if (isSelfAdmin)
+                                  const Text(
+                                    'Admin',
+                                    style: TextStyle(
+                                      color: AppColors.khakiBeige,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  )
+                                else if (isMod)
+                                  const Text(
+                                    'Moderator',
+                                    style: TextStyle(
+                                      color: AppColors.pacificBlue,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${u.reputation} pts · UID: ${u.uid}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 11.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!isSelfAdmin) ...[
+                        IconButton(
+                          tooltip: isMod
+                              ? 'Remove Moderator'
+                              : 'Make Moderator',
+                          icon: Icon(
+                            isMod
+                                ? Icons.gavel_rounded
+                                : Icons.add_moderator_outlined,
+                            color: isMod
+                                ? AppColors.pacificBlue
+                                : AppColors.textSecondary,
+                          ),
+                          onPressed: () =>
+                              onToggleModerator(u.uid, u.displayName, isMod),
+                        ),
+                        IconButton(
+                          tooltip: 'Delete & Ban User',
+                          icon: const Icon(
+                            Icons.person_off_outlined,
+                            color: AppColors.error,
+                          ),
+                          onPressed: () => onBanUser(u.uid, u.displayName),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              },
             );
           },
         );
@@ -494,4 +624,3 @@ class _UsersTab extends StatelessWidget {
     );
   }
 }
-

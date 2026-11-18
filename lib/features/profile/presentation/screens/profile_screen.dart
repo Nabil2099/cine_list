@@ -122,6 +122,10 @@ class ProfileScreen extends StatelessWidget {
                             UserAvatar(
                               avatarKey: profile.avatarKey,
                               photoBase64: profile.photoBase64,
+                              reputation: profile.reputation,
+                              isAdmin: communityState.isAdmin,
+                              isModerator: communityState.isModerator,
+                              showRankBadge: false,
                               radius: 44,
                             ),
                             Positioned(
@@ -148,13 +152,95 @@ class ProfileScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 14),
-                      Text(
-                        profile.displayName,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 21,
-                          fontWeight: FontWeight.w800,
-                        ),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            profile.displayName,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 21,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          if (communityState.isAdmin)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.khakiBeige.withValues(
+                                  alpha: 0.18,
+                                ),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: AppColors.khakiBeige.withValues(
+                                    alpha: 0.65,
+                                  ),
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.verified_user_rounded,
+                                    size: 13,
+                                    color: AppColors.khakiBeige,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Admin',
+                                    style: TextStyle(
+                                      color: AppColors.khakiBeige,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else if (communityState.isModerator)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.pacificBlue.withValues(
+                                  alpha: 0.18,
+                                ),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: AppColors.pacificBlue.withValues(
+                                    alpha: 0.65,
+                                  ),
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.gavel_rounded,
+                                    size: 13,
+                                    color: AppColors.pacificBlue,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Moderator',
+                                    style: TextStyle(
+                                      color: AppColors.pacificBlue,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
                       ),
                       if (email.isNotEmpty) ...[
                         const SizedBox(height: 3),
@@ -187,6 +273,10 @@ class ProfileScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+
+                const SizedBox(height: 20),
+
+                _KarmaRankCard(profile: profile),
 
                 const SizedBox(height: 20),
 
@@ -358,19 +448,29 @@ class ProfileScreen extends StatelessWidget {
                           },
                         ),
                       ],
-                      if (communityState.isAdmin) ...[
+                      if (communityState.isStaff) ...[
                         const Divider(
                           height: 1,
                           color: AppColors.surfaceBorder,
                         ),
                         ListTile(
-                          leading: const Icon(
-                            Icons.admin_panel_settings_outlined,
-                            color: AppColors.pacificBlue,
+                          leading: Icon(
+                            communityState.isAdmin
+                                ? Icons.admin_panel_settings_outlined
+                                : Icons.gavel_rounded,
+                            color: communityState.isAdmin
+                                ? AppColors.khakiBeige
+                                : AppColors.pacificBlue,
                           ),
-                          title: const Text('Admin Moderation Panel'),
-                          subtitle: const Text(
-                            'Manage reports, reviews & users',
+                          title: Text(
+                            communityState.isAdmin
+                                ? 'Admin Moderation Panel'
+                                : 'Moderation Panel',
+                          ),
+                          subtitle: Text(
+                            communityState.isAdmin
+                                ? 'Manage moderators, reports, reviews & users'
+                                : 'Review reports & delete offending reviews',
                           ),
                           trailing: const Icon(Icons.chevron_right_rounded),
                           onTap: () => context.push('/admin'),
@@ -442,6 +542,99 @@ class _StatBox extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _KarmaRankCard extends StatelessWidget {
+  const _KarmaRankCard({required this.profile});
+
+  final UserProfileModel profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final tier = profile.tier;
+    final next = tier.nextTier;
+    final progress = tier.progressToNext(profile.reputation);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: tier.color.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: tier.color.withValues(alpha: 0.16),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(tier.icon, color: tier.color, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Rank: ${tier.label}',
+                      style: TextStyle(
+                        color: tier.color,
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      next == null
+                          ? 'Highest CineList rank unlocked!'
+                          : '${next.minPoints - profile.reputation} pts to ${next.label}',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceElevated,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: AppColors.surfaceBorder),
+                ),
+                child: Text(
+                  '${profile.reputation} Karma',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 7,
+              backgroundColor: AppColors.surfaceElevated,
+              color: tier.color,
+            ),
+          ),
+        ],
       ),
     );
   }

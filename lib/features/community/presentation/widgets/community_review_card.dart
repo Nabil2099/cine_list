@@ -13,6 +13,10 @@ class CommunityReviewCard extends StatelessWidget {
     required this.isOwner,
     this.isLiked = false,
     this.isDisliked = false,
+    this.authorPhotoBase64,
+    this.authorReputation = 0,
+    this.isAuthorAdmin = false,
+    this.isAuthorModerator = false,
     this.showMovieHeader = true,
     this.onMovieTap,
     this.onAuthorTap,
@@ -27,6 +31,10 @@ class CommunityReviewCard extends StatelessWidget {
   final bool isOwner;
   final bool isLiked;
   final bool isDisliked;
+  final String? authorPhotoBase64;
+  final int authorReputation;
+  final bool isAuthorAdmin;
+  final bool isAuthorModerator;
   final bool showMovieHeader;
   final VoidCallback? onMovieTap;
   final VoidCallback? onAuthorTap;
@@ -69,22 +77,89 @@ class CommunityReviewCard extends StatelessWidget {
                       children: [
                         UserAvatar(
                           avatarKey: review.authorAvatarKey,
-                          radius: 18,
+                          photoBase64: authorPhotoBase64,
+                          reputation: authorReputation,
+                          isAdmin: isAuthorAdmin,
+                          isModerator: isAuthorModerator,
+                          radius: 19,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                review.authorName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      review.authorName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  if (isAuthorAdmin) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 1.5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.khakiBeige.withValues(
+                                          alpha: 0.18,
+                                        ),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                        border: Border.all(
+                                          color: AppColors.khakiBeige
+                                              .withValues(alpha: 0.6),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Admin',
+                                        style: TextStyle(
+                                          color: AppColors.khakiBeige,
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ] else if (isAuthorModerator) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 1.5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.pacificBlue.withValues(
+                                          alpha: 0.18,
+                                        ),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                        border: Border.all(
+                                          color: AppColors.pacificBlue
+                                              .withValues(alpha: 0.6),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Mod',
+                                        style: TextStyle(
+                                          color: AppColors.pacificBlue,
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                               Text(
                                 _formatDate(review.createdAt),

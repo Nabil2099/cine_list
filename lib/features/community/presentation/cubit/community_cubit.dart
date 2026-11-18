@@ -18,6 +18,9 @@ class CommunityCubit extends Cubit<CommunityState> {
   final CommunityRepository _repository;
   StreamSubscription<UserProfileModel?>? _profileSub;
   StreamSubscription<List<MovieReviewModel>>? _reviewsSub;
+  StreamSubscription<List<UserProfileModel>>? _allUsersSub;
+  StreamSubscription<Set<String>>? _adminUidsSub;
+  StreamSubscription<Set<String>>? _moderatorUidsSub;
   String? _currentUid;
   String? _fallbackName;
 
@@ -43,8 +46,14 @@ class CommunityCubit extends Cubit<CommunityState> {
 
     _profileSub?.cancel();
     _reviewsSub?.cancel();
+    _allUsersSub?.cancel();
+    _adminUidsSub?.cancel();
+    _moderatorUidsSub?.cancel();
     _profileSub = null;
     _reviewsSub = null;
+    _allUsersSub = null;
+    _adminUidsSub = null;
+    _moderatorUidsSub = null;
     _currentUid = uid;
     _fallbackName = resolvedName;
 
@@ -71,12 +80,40 @@ class CommunityCubit extends Cubit<CommunityState> {
       }
     });
 
+    try {
+      _allUsersSub = _repository.watchAllUsers().listen((users) {
+        final byUid = <String, UserProfileModel>{
+          for (final u in users) u.uid: u,
+        };
+        emit(state.copyWith(userProfilesByUid: byUid));
+      }, onError: (_) {});
+    } catch (_) {}
+
+    try {
+      _adminUidsSub = _repository.watchAdminUids().listen((uids) {
+        emit(state.copyWith(adminUids: uids));
+      }, onError: (_) {});
+    } catch (_) {}
+
+    try {
+      _moderatorUidsSub = _repository.watchModeratorUids().listen((uids) {
+        emit(state.copyWith(moderatorUids: uids));
+      }, onError: (_) {});
+    } catch (_) {}
+
     Future<void>(() async {
       try {
         final admin = await _repository.isAdmin(uid);
+        final moderator = await _repository.isModerator(uid);
         final banned = await _repository.isUserBanned(uid);
         if (!isClosed && _currentUid == uid) {
-          emit(state.copyWith(isAdmin: admin, isBanned: banned));
+          emit(
+            state.copyWith(
+              isAdmin: admin,
+              isModerator: moderator,
+              isBanned: banned,
+            ),
+          );
         }
       } catch (_) {}
     });
@@ -128,6 +165,7 @@ class CommunityCubit extends Cubit<CommunityState> {
         bio: bio.trim(),
         avatarKey: avatarKey,
         photoBase64: clearPhoto ? null : (photoBase64 ?? state.profile?.photoBase64),
+        reputation: state.profile?.reputation ?? 0,
         updatedAt: DateTime.now(),
       );
       await _repository.saveProfile(updated);
@@ -252,6 +290,22 @@ class CommunityCubit extends Cubit<CommunityState> {
     }
   }
 
+  Future<bool> checkIsAdmin(String uid) async {
+    try {
+      return await _repository.isAdmin(uid);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> checkIsModerator(String uid) async {
+    try {
+      return await _repository.isModerator(uid);
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> deleteReview(String reviewId) async {
     emit(state.copyWith(isSubmitting: true, clearError: true));
     try {
@@ -268,6 +322,9 @@ class CommunityCubit extends Cubit<CommunityState> {
   Future<void> close() {
     _profileSub?.cancel();
     _reviewsSub?.cancel();
+    _allUsersSub?.cancel();
+    _adminUidsSub?.cancel();
+    _moderatorUidsSub?.cancel();
     return super.close();
   }
 }

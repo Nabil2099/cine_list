@@ -39,7 +39,12 @@ class UserProfileDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final future = context.read<CommunityCubit>().fetchUserProfile(uid);
+    final cubit = context.read<CommunityCubit>();
+    final future = Future.wait([
+      cubit.fetchUserProfile(uid),
+      cubit.checkIsAdmin(uid),
+      cubit.checkIsModerator(uid),
+    ]);
 
     return AlertDialog(
       backgroundColor: AppColors.surfaceCard,
@@ -47,10 +52,12 @@ class UserProfileDialog extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
       ),
-      content: FutureBuilder<UserProfileModel?>(
+      content: FutureBuilder<List<dynamic>>(
         future: future,
         builder: (context, snapshot) {
-          final profile = snapshot.data;
+          final profile = snapshot.data?[0] as UserProfileModel?;
+          final isAdmin = (snapshot.data?[1] as bool?) ?? false;
+          final isModerator = (snapshot.data?[2] as bool?) ?? false;
           final displayName = (profile?.displayName.trim().isNotEmpty ?? false)
               ? profile!.displayName
               : fallbackName;
@@ -58,6 +65,8 @@ class UserProfileDialog extends StatelessWidget {
               ? profile!.avatarKey
               : fallbackAvatarKey;
           final bio = profile?.bio.trim() ?? '';
+          final reputation = profile?.reputation ?? 0;
+          final tier = ReputationTier.fromPoints(reputation);
 
           return Column(
             mainAxisSize: MainAxisSize.min,
@@ -65,6 +74,9 @@ class UserProfileDialog extends StatelessWidget {
               UserAvatar(
                 avatarKey: avatarKey,
                 photoBase64: profile?.photoBase64,
+                reputation: reputation,
+                isAdmin: isAdmin,
+                isModerator: isModerator,
                 radius: 34,
               ),
               const SizedBox(height: 12),
@@ -75,6 +87,108 @@ class UserProfileDialog extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
                 ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                alignment: WrapAlignment.center,
+                children: [
+                  if (isAdmin)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.khakiBeige.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: AppColors.khakiBeige.withValues(alpha: 0.65),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.verified_user_rounded,
+                            size: 14,
+                            color: AppColors.khakiBeige,
+                          ),
+                          SizedBox(width: 5),
+                          Text(
+                            'Admin',
+                            style: TextStyle(
+                              color: AppColors.khakiBeige,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (isModerator)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.pacificBlue.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: AppColors.pacificBlue.withValues(alpha: 0.65),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.gavel_rounded,
+                            size: 14,
+                            color: AppColors.pacificBlue,
+                          ),
+                          SizedBox(width: 5),
+                          Text(
+                            'Moderator',
+                            style: TextStyle(
+                              color: AppColors.pacificBlue,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: tier.color.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: tier.color.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(tier.icon, size: 14, color: tier.color),
+                        const SizedBox(width: 5),
+                        Text(
+                          '${tier.label} · $reputation pts',
+                          style: TextStyle(
+                            color: tier.color,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
               if (snapshot.connectionState == ConnectionState.waiting)

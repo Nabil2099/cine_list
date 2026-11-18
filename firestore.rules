@@ -15,6 +15,15 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    function isModerator() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/moderators/$(request.auth.uid));
+    }
+
+    function isStaff() {
+      return isAdmin() || isModerator();
+    }
+
     function isNotBanned() {
       return isSignedIn()
         && !exists(/databases/$(database)/documents/banned_users/$(request.auth.uid));
@@ -58,7 +67,8 @@ service cloud.firestore {
         && data.bio.size() <= 200
         && data.avatarKey is string
         && data.updatedAt is timestamp
-        && (!('photoBase64' in data) || data.photoBase64 == null || (data.photoBase64 is string && data.photoBase64.size() <= 400000));
+        && (!('photoBase64' in data) || data.photoBase64 == null || (data.photoBase64 is string && data.photoBase64.size() <= 400000))
+        && (!('reputation' in data) || (data.reputation is int && data.reputation >= 0));
     }
 
     function isValidReview(data) {
@@ -90,7 +100,23 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if isSignedIn();
-      allow create, update: if isOwner(uid) && isNotBanned() && isValidUserProfile(request.resource.data);
+      allow create: if isOwner(uid) && isNotBanned() && isValidUserProfile(request.resource.data);
+      allow update: if (
+        isOwner(uid)
+        && isNotBanned()
+        && isValidUserProfile(request.resource.data)
+        && (
+          !('reputation' in request.resource.data)
+          || request.resource.data.reputation <= resource.data.get('reputation', 0) + 5
+        )
+      ) || (
+        isSignedIn()
+        && isNotBanned()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reputation'])
+        && request.resource.data.reputation is int
+        && request.resource.data.reputation >= 0
+        && math.abs(request.resource.data.reputation - resource.data.get('reputation', 0)) <= 15
+      );
       allow delete: if isAdmin();
 
       match /watchlist/{movieId} {
@@ -119,7 +145,7 @@ service cloud.firestore {
         isValidReview(request.resource.data)
         || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'dislikedBy'])
       );
-      allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isStaff());
     }
 
     match /reports/{reportId} {
@@ -127,12 +153,17 @@ service cloud.firestore {
         && isNotBanned()
         && request.resource.data.reporterUid == request.auth.uid
         && request.resource.data.reason in ['sexual_harassment', 'hate_speech', 'child_abuse'];
-      allow read, update, delete: if isAdmin();
+      allow read, update, delete: if isStaff();
     }
 
     match /admins/{uid} {
-      allow read: if isOwner(uid) || isAdmin();
+      allow read: if isSignedIn();
       allow write: if false;
+    }
+
+    match /moderators/{uid} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
     }
 
     match /banned_users/{uid} {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../theme/app_colors.dart';
 
@@ -175,6 +176,54 @@ class WebSideNavBar extends StatelessWidget {
                 );
               }),
               const Spacer(),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Tooltip(
+                  message: isExpanded ? '' : 'Profile',
+                  child: InkWell(
+                    onTap: () => context.push('/profile'),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isExpanded ? 14 : 0,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceCard,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.surfaceBorder),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: isExpanded
+                            ? MainAxisAlignment.start
+                            : MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.person_outline_rounded,
+                            size: 22,
+                            color: AppColors.khakiBeige,
+                          ),
+                          if (isExpanded) ...[
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Text(
+                                'Profile',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
               if (isExpanded)
                 Container(
                   padding: const EdgeInsets.all(12),

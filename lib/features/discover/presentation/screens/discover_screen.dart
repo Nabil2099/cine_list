@@ -1,6 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/routing/movie_details_route.dart';
@@ -13,11 +13,11 @@ import '../../../../shared/models/movie_summary.dart';
 import '../../../../shared/widgets/movie_card.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../community/presentation/cubit/community_cubit.dart';
-import '../../../community/presentation/widgets/user_avatar_widget.dart';
 import '../../../watchlist/presentation/cubit/watchlist_cubit.dart';
 import '../cubit/discover_cubit.dart';
 import '../cubit/discover_state.dart';
 import '../widgets/category_tabs.dart';
+import '../widgets/discover_profile_drawer.dart';
 import '../widgets/featured_movie_card.dart';
 import '../widgets/genre_filter_bar.dart';
 import '../widgets/movie_search_bar.dart';
@@ -73,8 +73,15 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         ? authDisplayName.trim()
         : Formatters.greetingName(userEmail);
 
-    return SafeArea(
-      child: Center(
+    final isWideWeb =
+        kIsWeb &&
+        MediaQuery.sizeOf(context).width >= AppConstants.tabletBreakpoint;
+
+    return Scaffold(
+      backgroundColor: AppColors.black,
+      drawer: isWideWeb ? null : const DiscoverProfileDrawer(),
+      body: SafeArea(
+        child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
             maxWidth: AppConstants.maxContentWidth,
@@ -91,6 +98,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   sliver: SliverToBoxAdapter(
                     child: _DiscoverHeader(
                       greetingName: greetingName,
+                      showDrawerButton: !isWideWeb,
                       userEmail: userEmail,
                       onSignOut: () => context.read<AuthCubit>().signOut(),
                     ),
@@ -216,6 +224,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ),
         ),
       ),
+      ),
     );
   }
 }
@@ -223,11 +232,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 class _DiscoverHeader extends StatelessWidget {
   const _DiscoverHeader({
     required this.greetingName,
+    required this.showDrawerButton,
     required this.userEmail,
     required this.onSignOut,
   });
 
   final String greetingName;
+  final bool showDrawerButton;
   final String? userEmail;
   final VoidCallback onSignOut;
 
@@ -235,6 +246,32 @@ class _DiscoverHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
+        if (showDrawerButton) ...[
+          Builder(
+            builder: (context) {
+              return IconButton(
+                tooltip: 'Profile & Settings',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+                icon: Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceCard,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.surfaceBorder),
+                  ),
+                  child: const Icon(
+                    Icons.menu_rounded,
+                    color: AppColors.khakiBeige,
+                    size: 20,
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 12),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -252,28 +289,6 @@ class _DiscoverHeader extends StatelessWidget {
               ),
             ],
           ),
-        ),
-        Builder(
-          builder: (context) {
-            final profile = context.select<CommunityCubit, ({String key, String? photo})>(
-              (c) => (
-                key: c.state.profile?.avatarKey ?? 'cinema',
-                photo: c.state.profile?.photoBase64,
-              ),
-            );
-            return InkWell(
-              onTap: () => context.push('/profile'),
-              borderRadius: BorderRadius.circular(24),
-              child: Tooltip(
-                message: 'My Profile',
-                child: UserAvatar(
-                  avatarKey: profile.key,
-                  photoBase64: profile.photo,
-                  radius: 19,
-                ),
-              ),
-            );
-          },
         ),
       ],
     );

@@ -73,6 +73,43 @@ class AvatarPreset {
   }
 }
 
+/// Community reputation rank tiers unlocked by earning karma points.
+enum ReputationTier {
+  viewer(0, 'Viewer', Color(0xFF847C8A), Icons.person_outline_rounded),
+  critic(25, 'Critic', Color(0xFFCD7F32), Icons.star_half_rounded),
+  cinephile(100, 'Cinephile', AppColors.softPeriwinkle, Icons.star_rounded),
+  auteur(250, 'Auteur', AppColors.starAmber, Icons.workspace_premium_rounded),
+  legend(500, 'Legend', AppColors.pacificBlue, Icons.auto_awesome_rounded);
+
+  const ReputationTier(this.minPoints, this.label, this.color, this.icon);
+
+  final int minPoints;
+  final String label;
+  final Color color;
+  final IconData icon;
+
+  static ReputationTier fromPoints(int points) {
+    for (final tier in ReputationTier.values.reversed) {
+      if (points >= tier.minPoints) return tier;
+    }
+    return ReputationTier.viewer;
+  }
+
+  ReputationTier? get nextTier {
+    final idx = ReputationTier.values.indexOf(this);
+    if (idx < 0 || idx >= ReputationTier.values.length - 1) return null;
+    return ReputationTier.values[idx + 1];
+  }
+
+  double progressToNext(int points) {
+    final next = nextTier;
+    if (next == null) return 1.0;
+    final span = next.minPoints - minPoints;
+    if (span <= 0) return 1.0;
+    return ((points - minPoints) / span).clamp(0.0, 1.0);
+  }
+}
+
 /// Public community user profile stored in `users/{uid}`.
 class UserProfileModel extends Equatable {
   const UserProfileModel({
@@ -81,6 +118,7 @@ class UserProfileModel extends Equatable {
     this.bio = '',
     this.avatarKey = 'cinema',
     this.photoBase64,
+    this.reputation = 0,
     this.updatedAt,
   });
 
@@ -93,6 +131,7 @@ class UserProfileModel extends Equatable {
       bio: (map['bio'] as String?) ?? '',
       avatarKey: (map['avatarKey'] as String?) ?? 'cinema',
       photoBase64: map['photoBase64'] as String?,
+      reputation: ((map['reputation'] as num?)?.toInt() ?? 0).clamp(0, 999999),
       updatedAt: _parseTimestamp(map['updatedAt']),
     );
   }
@@ -102,7 +141,10 @@ class UserProfileModel extends Equatable {
   final String bio;
   final String avatarKey;
   final String? photoBase64;
+  final int reputation;
   final DateTime? updatedAt;
+
+  ReputationTier get tier => ReputationTier.fromPoints(reputation);
 
   Map<String, dynamic> toFirestoreMap() {
     return {
@@ -110,6 +152,7 @@ class UserProfileModel extends Equatable {
       'bio': bio.trim(),
       'avatarKey': avatarKey,
       'photoBase64': photoBase64,
+      'reputation': reputation,
       'updatedAt': Timestamp.fromDate(updatedAt ?? DateTime.now()),
     };
   }
@@ -120,6 +163,7 @@ class UserProfileModel extends Equatable {
     String? avatarKey,
     String? photoBase64,
     bool clearPhoto = false,
+    int? reputation,
     DateTime? updatedAt,
   }) {
     return UserProfileModel(
@@ -128,6 +172,7 @@ class UserProfileModel extends Equatable {
       bio: bio ?? this.bio,
       avatarKey: avatarKey ?? this.avatarKey,
       photoBase64: clearPhoto ? null : (photoBase64 ?? this.photoBase64),
+      reputation: reputation ?? this.reputation,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -145,6 +190,7 @@ class UserProfileModel extends Equatable {
     bio,
     avatarKey,
     photoBase64,
+    reputation,
     updatedAt,
   ];
 }

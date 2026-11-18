@@ -16,6 +16,7 @@ class CommunityRepository {
   static const String reviewsCollection = 'reviews';
   static const String reportsCollection = 'reports';
   static const String adminsCollection = 'admins';
+  static const String moderatorsCollection = 'moderators';
   static const String bannedUsersCollection = 'banned_users';
 
   static const Duration reviewCooldown = Duration(seconds: 60);
@@ -35,6 +36,10 @@ class CommunityRepository {
 
   CollectionReference<Map<String, dynamic>> get _adminsRef {
     return _firestore.collection(adminsCollection);
+  }
+
+  CollectionReference<Map<String, dynamic>> get _moderatorsRef {
+    return _firestore.collection(moderatorsCollection);
   }
 
   CollectionReference<Map<String, dynamic>> get _bannedRef {
@@ -146,7 +151,19 @@ class CommunityRepository {
       }
 
       final docId = MovieReviewModel.docIdFor(review.movieId, review.uid);
-      await _reviewsRef.doc(docId).set(review.toFirestoreMap());
+      final reviewRef = _reviewsRef.doc(docId);
+      final existingDoc = await reviewRef.get();
+      await reviewRef.set(review.toFirestoreMap());
+
+      if (!existingDoc.exists) {
+        final profileRef = _profileRef(review.uid);
+        final profileSnap = await profileRef.get();
+        if (profileSnap.exists) {
+          final currentRep =
+              (profileSnap.data()?['reputation'] as num?)?.toInt() ?? 0;
+          await profileRef.update({'reputation': currentRep + 5});
+        }
+      }
     } on WatchlistException {
       rethrow;
     } on FirebaseException catch (e) {
@@ -162,11 +179,48 @@ class CommunityRepository {
     required bool currentlyLiked,
   }) async {
     try {
-      await _reviewsRef.doc(reviewId).update({
-        'likedBy': currentlyLiked
-            ? FieldValue.arrayRemove([uid])
-            : FieldValue.arrayUnion([uid]),
-        if (!currentlyLiked) 'dislikedBy': FieldValue.arrayRemove([uid]),
+      await _firestore.runTransaction((tx) async {
+        final reviewRef = _reviewsRef.doc(reviewId);
+        final reviewSnap = await tx.get(reviewRef);
+        final data = reviewSnap.data();
+        if (!reviewSnap.exists || data == null) return;
+
+        final authorUid = (data['uid'] as String?) ?? '';
+        final likedBy = List<String>.from(
+          (data['likedBy'] as List?)?.whereType<String>() ?? const [],
+        );
+        final dislikedBy = List<String>.from(
+          (data['dislikedBy'] as List?)?.whereType<String>() ?? const [],
+        );
+
+        final wasLiked = likedBy.contains(uid);
+        final wasDisliked = dislikedBy.contains(uid);
+
+        int delta = 0;
+        if (wasLiked) {
+          likedBy.remove(uid);
+          delta = -10;
+        } else {
+          likedBy.add(uid);
+          delta = 10;
+          if (wasDisliked) {
+            dislikedBy.remove(uid);
+            delta += 5;
+          }
+        }
+
+        if (authorUid.isNotEmpty && authorUid != uid && delta != 0) {
+          final authorRef = _profileRef(authorUid);
+          final authorSnap = await tx.get(authorRef);
+          if (authorSnap.exists) {
+            final currentRep =
+                (authorSnap.data()?['reputation'] as num?)?.toInt() ?? 0;
+            final nextRep = (currentRep + delta).clamp(0, 999999);
+            tx.update(authorRef, {'reputation': nextRep});
+          }
+        }
+
+        tx.update(reviewRef, {'likedBy': likedBy, 'dislikedBy': dislikedBy});
       });
     } on FirebaseException catch (e) {
       throw WatchlistException(_mapError(e), code: e.code);
@@ -181,11 +235,48 @@ class CommunityRepository {
     required bool currentlyDisliked,
   }) async {
     try {
-      await _reviewsRef.doc(reviewId).update({
-        'dislikedBy': currentlyDisliked
-            ? FieldValue.arrayRemove([uid])
-            : FieldValue.arrayUnion([uid]),
-        if (!currentlyDisliked) 'likedBy': FieldValue.arrayRemove([uid]),
+      await _firestore.runTransaction((tx) async {
+        final reviewRef = _reviewsRef.doc(reviewId);
+        final reviewSnap = await tx.get(reviewRef);
+        final data = reviewSnap.data();
+        if (!reviewSnap.exists || data == null) return;
+
+        final authorUid = (data['uid'] as String?) ?? '';
+        final likedBy = List<String>.from(
+          (data['likedBy'] as List?)?.whereType<String>() ?? const [],
+        );
+        final dislikedBy = List<String>.from(
+          (data['dislikedBy'] as List?)?.whereType<String>() ?? const [],
+        );
+
+        final wasLiked = likedBy.contains(uid);
+        final wasDisliked = dislikedBy.contains(uid);
+
+        int delta = 0;
+        if (wasDisliked) {
+          dislikedBy.remove(uid);
+          delta = 5;
+        } else {
+          dislikedBy.add(uid);
+          delta = -5;
+          if (wasLiked) {
+            likedBy.remove(uid);
+            delta -= 10;
+          }
+        }
+
+        if (authorUid.isNotEmpty && authorUid != uid && delta != 0) {
+          final authorRef = _profileRef(authorUid);
+          final authorSnap = await tx.get(authorRef);
+          if (authorSnap.exists) {
+            final currentRep =
+                (authorSnap.data()?['reputation'] as num?)?.toInt() ?? 0;
+            final nextRep = (currentRep + delta).clamp(0, 999999);
+            tx.update(authorRef, {'reputation': nextRep});
+          }
+        }
+
+        tx.update(reviewRef, {'likedBy': likedBy, 'dislikedBy': dislikedBy});
       });
     } on FirebaseException catch (e) {
       throw WatchlistException(_mapError(e), code: e.code);
@@ -214,6 +305,48 @@ class CommunityRepository {
       return doc.exists;
     } catch (_) {
       return false;
+    }
+  }
+
+  Future<bool> isModerator(String uid) async {
+    try {
+      final doc = await _moderatorsRef.doc(uid).get();
+      return doc.exists;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Stream<Set<String>> watchAdminUids() {
+    return _adminsRef.snapshots().map(
+      (snap) => snap.docs.map((d) => d.id).toSet(),
+    );
+  }
+
+  Stream<Set<String>> watchModeratorUids() {
+    return _moderatorsRef.snapshots().map(
+      (snap) => snap.docs.map((d) => d.id).toSet(),
+    );
+  }
+
+  Future<void> setModerator({
+    required String uid,
+    required bool makeModerator,
+  }) async {
+    try {
+      if (makeModerator) {
+        await _moderatorsRef.doc(uid).set({
+          'uid': uid,
+          'role': 'moderator',
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      } else {
+        await _moderatorsRef.doc(uid).delete();
+      }
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not update moderator role.');
     }
   }
 

@@ -570,6 +570,7 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
     final movieReviews = context.select<CommunityCubit, List<MovieReviewModel>>(
       (c) => c.state.reviewsForMovie(details.id),
     );
+    final communityState = context.watch<CommunityCubit>().state;
     MovieReviewModel? myReview;
     for (final r in movieReviews) {
       if (r.uid == currentUid) {
@@ -626,13 +627,26 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
           Column(
             children: movieReviews
                 .map(
-                  (review) => Padding(
+                  (review) {
+                    final authorProfile =
+                        communityState.userProfilesByUid[review.uid];
+                    final isAuthorAdmin = communityState.adminUids.contains(
+                      review.uid,
+                    );
+                    final isAuthorMod = communityState.moderatorUids.contains(
+                      review.uid,
+                    );
+                    return Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: CommunityReviewCard(
                       review: review,
                       isOwner: review.uid == currentUid,
                       isLiked: review.isLikedBy(currentUid),
                       isDisliked: review.isDislikedBy(currentUid),
+                      authorPhotoBase64: authorProfile?.photoBase64,
+                      authorReputation: authorProfile?.reputation ?? 0,
+                      isAuthorAdmin: isAuthorAdmin,
+                      isAuthorModerator: isAuthorMod,
                       showMovieHeader: false,
                       onAuthorTap: () => UserProfileDialog.show(
                         context,
@@ -682,7 +696,8 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
                           .read<CommunityCubit>()
                           .deleteReview(review.id),
                     ),
-                  ),
+                  );
+                  },
                 )
                 .toList(),
           ),

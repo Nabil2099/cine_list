@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/app_constants.dart';
@@ -12,38 +11,15 @@ import '../../../../core/widgets/loading_view.dart';
 import '../../../../shared/models/movie_summary.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../data/models/movie_review_model.dart';
-import '../../data/models/user_profile_model.dart';
 import '../cubit/community_cubit.dart';
 import '../cubit/community_state.dart';
 import '../widgets/community_review_card.dart';
-import '../widgets/edit_profile_dialog.dart';
 import '../widgets/report_review_dialog.dart';
-import '../widgets/user_avatar_widget.dart';
 import '../widgets/user_profile_dialog.dart';
 
-/// Community tab displaying the user's editable profile (avatar + bio) and
-/// the public movie reviews feed.
+/// Community tab displaying the public movie reviews feed and staff moderation link.
 class CommunityScreen extends StatelessWidget {
   const CommunityScreen({super.key});
-
-  Future<void> _editProfile(
-    BuildContext context,
-    UserProfileModel profile,
-  ) async {
-    final result = await EditProfileDialog.show(
-      context,
-      initialProfile: profile,
-    );
-    if (result != null && context.mounted) {
-      await context.read<CommunityCubit>().updateProfile(
-        displayName: result.displayName,
-        bio: result.bio,
-        avatarKey: result.avatarKey,
-        photoBase64: result.photoBase64,
-        clearPhoto: result.clearPhoto,
-      );
-    }
-  }
 
   void _openMovie(BuildContext context, MovieReviewModel review) {
     MovieDetailsRoute.push(
@@ -86,13 +62,6 @@ class CommunityScreen extends StatelessWidget {
               }
             },
             builder: (context, state) {
-              final profile =
-                  state.profile ??
-                  UserProfileModel(
-                    uid: currentUid ?? '',
-                    displayName: 'Movie Fan',
-                  );
-
               return CustomScrollView(
                 slivers: [
                   SliverPadding(
@@ -101,46 +70,16 @@ class CommunityScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'Community',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineMedium,
-                                ),
-                              ),
-                              if (state.isAdmin)
-                                OutlinedButton.icon(
-                                  onPressed: () => context.push('/admin'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.khakiBeige,
-                                    side: BorderSide(
-                                      color: AppColors.khakiBeige.withValues(
-                                        alpha: 0.5,
-                                      ),
-                                    ),
-                                  ),
-                                  icon: const Icon(
-                                    Icons.admin_panel_settings_outlined,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Admin'),
-                                ),
-                            ],
+                          Text(
+                            'Community',
+                            style: Theme.of(context).textTheme.headlineMedium,
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Share your taste, bio, and movie reviews',
+                            'See what movie lovers are reviewing',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
-                          const SizedBox(height: 16),
-                          _ProfileCard(
-                            profile: profile,
-                            onEdit: () => _editProfile(context, profile),
-                          ),
-                          const SizedBox(height: 22),
+                          const SizedBox(height: 18),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -149,7 +88,7 @@ class CommunityScreen extends StatelessWidget {
                                 style: Theme.of(context).textTheme.titleLarge,
                               ),
                               Text(
-                                '${state.reviews.length} posts',
+                                '${state.reviews.length} reviews',
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
@@ -159,13 +98,14 @@ class CommunityScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (state.status == CommunityStatus.loading ||
-                      state.status == CommunityStatus.initial)
+                  if (state.status == CommunityStatus.loading &&
+                      state.reviews.isEmpty)
                     const SliverFillRemaining(
                       hasScrollBody: false,
-                      child: LoadingView(message: 'Loading community feed...'),
+                      child: LoadingView(message: 'Loading community...'),
                     )
-                  else if (state.status == CommunityStatus.error)
+                  else if (state.status == CommunityStatus.error &&
+                      state.reviews.isEmpty)
                     SliverFillRemaining(
                       hasScrollBody: false,
                       child: ErrorView(
@@ -179,9 +119,10 @@ class CommunityScreen extends StatelessWidget {
                     const SliverFillRemaining(
                       hasScrollBody: false,
                       child: EmptyStateView(
-                        icon: Icons.forum_outlined,
-                        title: 'No reviews yet',
-                        message: 'Open any movie and tap "Write a Review" to start the conversation.',
+                        icon: Icons.rate_review_outlined,
+                        title: 'No community reviews yet',
+                        message:
+                            'Open any movie and tap "Write a Review" to start the conversation.',
                       ),
                     )
                   else
@@ -192,11 +133,24 @@ class CommunityScreen extends StatelessWidget {
                         separatorBuilder: (_, _) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final review = state.reviews[index];
+                          final authorProfile =
+                              state.userProfilesByUid[review.uid];
+                          final isAuthorAdmin = state.adminUids.contains(
+                            review.uid,
+                          );
+                          final isAuthorMod = state.moderatorUids.contains(
+                            review.uid,
+                          );
+
                           return CommunityReviewCard(
                             review: review,
                             isOwner: review.uid == currentUid,
                             isLiked: review.isLikedBy(currentUid),
                             isDisliked: review.isDislikedBy(currentUid),
+                            authorPhotoBase64: authorProfile?.photoBase64,
+                            authorReputation: authorProfile?.reputation ?? 0,
+                            isAuthorAdmin: isAuthorAdmin,
+                            isAuthorModerator: isAuthorMod,
                             onMovieTap: () => _openMovie(context, review),
                             onAuthorTap: () => UserProfileDialog.show(
                               context,
@@ -243,85 +197,6 @@ class CommunityScreen extends StatelessWidget {
             },
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ProfileCard extends StatelessWidget {
-  const _ProfileCard({required this.profile, required this.onEdit});
-
-  final UserProfileModel profile;
-  final VoidCallback onEdit;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.surfaceCard,
-            AppColors.dustyLavender.withValues(alpha: 0.22),
-          ],
-        ),
-        border: Border.all(color: AppColors.surfaceBorder),
-      ),
-      child: Row(
-        children: [
-          UserAvatar(
-            avatarKey: profile.avatarKey,
-            photoBase64: profile.photoBase64,
-            radius: 28,
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  profile.displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.khakiBeige,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  profile.bio.trim().isNotEmpty ? profile.bio.trim() : 'Add a bio to tell the community what you love watching.',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: profile.bio.trim().isNotEmpty
-                        ? AppColors.textSecondary
-                        : AppColors.textMuted,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          OutlinedButton.icon(
-            onPressed: onEdit,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.pacificBlue,
-              side: const BorderSide(color: AppColors.pacificBlue),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-            icon: const Icon(Icons.edit_outlined, size: 16),
-            label: const Text('Edit', style: TextStyle(fontSize: 12.5)),
-          ),
-        ],
       ),
     );
   }

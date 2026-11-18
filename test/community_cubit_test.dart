@@ -55,6 +55,7 @@ void main() {
   setUp(() {
     repository = MockCommunityRepository();
     when(() => repository.isAdmin(any())).thenAnswer((_) async => false);
+    when(() => repository.isModerator(any())).thenAnswer((_) async => false);
     when(() => repository.isUserBanned(any())).thenAnswer((_) async => false);
   });
 
@@ -234,5 +235,14 @@ void main() {
         );
       },
     );
+
+    test('ReputationTier maps karma points to expected rank tiers', () {
+      expect(ReputationTier.fromPoints(0), ReputationTier.viewer);
+      expect(ReputationTier.fromPoints(24), ReputationTier.viewer);
+      expect(ReputationTier.fromPoints(25), ReputationTier.critic);
+      expect(ReputationTier.fromPoints(100), ReputationTier.cinephile);
+      expect(ReputationTier.fromPoints(250), ReputationTier.auteur);
+      expect(ReputationTier.fromPoints(500), ReputationTier.legend);
+    });
   });
 }

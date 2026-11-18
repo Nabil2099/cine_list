@@ -8,11 +8,7 @@ sealed class CommunityEvent extends Equatable {
 }
 
 final class CommunityUserBound extends CommunityEvent {
-  const CommunityUserBound({
-    required this.uid,
-    this.email,
-    this.displayName,
-  });
+  const CommunityUserBound({required this.uid, this.email, this.displayName});
 
   final String? uid;
   final String? email;
@@ -24,6 +20,10 @@ final class CommunityUserBound extends CommunityEvent {
 
 final class CommunityFeedbackCleared extends CommunityEvent {
   const CommunityFeedbackCleared();
+}
+
+final class CommunityRefreshed extends CommunityEvent {
+  const CommunityRefreshed();
 }
 
 final class CommunityProfileUpdated extends CommunityEvent {
@@ -108,10 +108,7 @@ final class CommunityReviewSubmitted extends CommunityEvent {
 }
 
 final class CommunityReactionToggled extends CommunityEvent {
-  const CommunityReactionToggled({
-    required this.review,
-    required this.isLike,
-  });
+  const CommunityReactionToggled({required this.review, required this.isLike});
 
   final MovieReviewModel review;
   final bool isLike;
@@ -142,6 +139,82 @@ final class CommunityReviewDeleted extends CommunityEvent {
 
   @override
   List<Object?> get props => [reviewId];
+}
+
+final class CommunityPollVoted extends CommunityEvent {
+  const CommunityPollVoted({required this.pollId, required this.optionIndex});
+
+  final String pollId;
+  final int optionIndex;
+
+  @override
+  List<Object?> get props => [pollId, optionIndex];
+}
+
+final class CommunityCuratedListPublished extends CommunityEvent {
+  const CommunityCuratedListPublished({
+    this.collectionId,
+    required this.title,
+    this.description = '',
+    required this.movies,
+  });
+
+  final String? collectionId;
+  final String title;
+  final String description;
+  final List<CuratedListMovie> movies;
+
+  @override
+  List<Object?> get props => [collectionId, title, description, movies];
+}
+
+final class CommunityCuratedListMoviesSynced extends CommunityEvent {
+  const CommunityCuratedListMoviesSynced({
+    required this.listId,
+    required this.movies,
+  });
+
+  final String listId;
+  final List<CuratedListMovie> movies;
+
+  @override
+  List<Object?> get props => [listId, movies];
+}
+
+final class CommunityCuratedListLikeToggled extends CommunityEvent {
+  const CommunityCuratedListLikeToggled(this.list);
+
+  final CuratedListModel list;
+
+  @override
+  List<Object?> get props => [list];
+}
+
+final class CommunityCuratedListDeleted extends CommunityEvent {
+  const CommunityCuratedListDeleted(this.listId);
+
+  final String listId;
+
+  @override
+  List<Object?> get props => [listId];
+}
+
+final class _CommunityPinnedPollReceived extends CommunityEvent {
+  const _CommunityPinnedPollReceived(this.poll);
+
+  final CommunityPollModel? poll;
+
+  @override
+  List<Object?> get props => [poll];
+}
+
+final class _CommunityCuratedListsReceived extends CommunityEvent {
+  const _CommunityCuratedListsReceived(this.lists);
+
+  final List<CuratedListModel> lists;
+
+  @override
+  List<Object?> get props => [lists];
 }
 
 final class _CommunityProfileReceived extends CommunityEvent {
@@ -214,4 +287,3 @@ final class _CommunityReviewsLoadFailed extends CommunityEvent {
   @override
   List<Object?> get props => [message];
 }
-

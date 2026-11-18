@@ -180,10 +180,7 @@ class AppRouter {
         path: '/movie/:id',
         pageBuilder: (context, state) => MovieDetailsRoute.buildPage(state),
       ),
-      GoRoute(
-        path: '/admin',
-        builder: (context, state) => const AdminScreen(),
-      ),
+      GoRoute(path: '/admin', builder: (context, state) => const AdminScreen()),
       GoRoute(
         path: '/profile',
         builder: (context, state) => const ProfileScreen(),

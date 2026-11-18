@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:cine_list/core/error/app_exception.dart';
+import 'package:cine_list/features/community/data/models/community_poll_model.dart';
+import 'package:cine_list/features/community/data/models/curated_list_model.dart';
 import 'package:cine_list/features/community/data/models/movie_review_model.dart';
 import 'package:cine_list/features/community/data/models/review_report_model.dart';
 import 'package:cine_list/features/community/data/models/user_profile_model.dart';
@@ -51,6 +53,18 @@ void main() {
   setUpAll(() {
     registerFallbackValue(sampleProfile);
     registerFallbackValue(sampleReview);
+    registerFallbackValue(
+      CuratedListModel(
+        id: 'list-1',
+        title: 'Mind-Bending Sci-Fi',
+        authorUid: 'uid-1',
+        authorName: 'Yami',
+        movies: const [
+          CuratedListMovie(movieId: 157336, title: 'Interstellar'),
+        ],
+        createdAt: DateTime(2026, 1, 1),
+      ),
+    );
     registerFallbackValue(
       ReviewReportModel(
         id: '157336_uid-1_uid-2',
@@ -425,39 +439,38 @@ void main() {
       },
     );
 
-    test(
-      'CommunityState.topCritics excludes 0-pt users and sorts by reputation descending',
-      () {
-        final users = {
-          'u0': const UserProfileModel(
-            uid: 'u0',
-            displayName: 'Zero',
-            reputation: 0,
-          ),
-          'u1': const UserProfileModel(
-            uid: 'u1',
-            displayName: 'User 1',
-            reputation: 20,
-          ),
-          'u2': const UserProfileModel(
-            uid: 'u2',
-            displayName: 'User 2',
-            reputation: 150,
-          ),
-          'u3': const UserProfileModel(
-            uid: 'u3',
-            displayName: 'User 3',
-            reputation: 80,
-          ),
-        };
-        final state = CommunityState(userProfilesByUid: users);
-        expect(state.topCritics.map((u) => u.uid).toList(), ['u2', 'u3', 'u1']);
-        expect(
-          state.leaderboard.map((u) => u.uid).toList(),
-          ['u2', 'u3', 'u1', 'u0'],
-        );
-      },
-    );
+    test('CommunityState.topCritics excludes 0-pt users and sorts by reputation descending', () {
+      final users = {
+        'u0': const UserProfileModel(
+          uid: 'u0',
+          displayName: 'Zero',
+          reputation: 0,
+        ),
+        'u1': const UserProfileModel(
+          uid: 'u1',
+          displayName: 'User 1',
+          reputation: 20,
+        ),
+        'u2': const UserProfileModel(
+          uid: 'u2',
+          displayName: 'User 2',
+          reputation: 150,
+        ),
+        'u3': const UserProfileModel(
+          uid: 'u3',
+          displayName: 'User 3',
+          reputation: 80,
+        ),
+      };
+      final state = CommunityState(userProfilesByUid: users);
+      expect(state.topCritics.map((u) => u.uid).toList(), ['u2', 'u3', 'u1']);
+      expect(state.leaderboard.map((u) => u.uid).toList(), [
+        'u2',
+        'u3',
+        'u1',
+        'u0',
+      ]);
+    });
 
     test(
       'like updates state optimistically before repository completes',
@@ -575,5 +588,177 @@ void main() {
 
       await bloc.close();
     });
+
+    test('CommunityPollModel computes vote counts and percentages', () {
+      final poll = CommunityPollModel(
+        id: 'poll-1',
+        question: 'Best Nolan ending?',
+        options: const ['Inception', 'Interstellar', 'The Prestige'],
+        votesByUid: const {'u1': 0, 'u2': 0, 'u3': 2},
+        createdByUid: 'admin',
+        createdAt: DateTime(2026, 1, 1),
+      );
+
+      expect(poll.totalVotes, 3);
+      expect(poll.votesForOption(0), 2);
+      expect(poll.votesForOption(1), 0);
+      expect(poll.selectedOptionFor('u3'), 2);
+      expect(poll.percentageForOption(0), closeTo(2 / 3, 0.001));
+    });
+
+    blocTest<CommunityBloc, CommunityState>(
+      'CommunityPollVoted updates poll optimistically and calls repository',
+      build: () {
+        final poll = CommunityPollModel(
+          id: 'poll-1',
+          question: 'Best sci-fi?',
+          options: const ['Dune', 'Blade Runner 2049'],
+          createdByUid: 'admin',
+          createdAt: DateTime(2026, 1, 1),
+        );
+        when(() => repository.watchProfile('uid-1'))
+            .thenAnswer((_) => Stream.value(sampleProfile));
+        when(() => repository.watchRecentReviews())
+            .thenAnswer((_) => Stream.value(const []));
+        when(() => repository.watchPinnedPoll())
+            .thenAnswer((_) => Stream.value(poll));
+        when(
+          () => repository.voteOnPoll(
+            pollId: 'poll-1',
+            uid: 'uid-1',
+            optionIndex: 1,
+          ),
+        ).thenAnswer((_) async {});
+        return CommunityBloc(repository);
+      },
+      act: (bloc) async {
+        bloc.add(
+          const CommunityUserBound(uid: 'uid-1', email: 'yami@cinelist.app'),
+        );
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const CommunityPollVoted(pollId: 'poll-1', optionIndex: 1));
+        await Future<void>.delayed(Duration.zero);
+      },
+      verify: (bloc) {
+        expect(bloc.state.pinnedPoll?.selectedOptionFor('uid-1'), 1);
+        verify(
+          () => repository.voteOnPoll(
+            pollId: 'poll-1',
+            uid: 'uid-1',
+            optionIndex: 1,
+          ),
+        ).called(1);
+      },
+    );
+
+    blocTest<CommunityBloc, CommunityState>(
+      'CommunityCuratedListPublished and LikeToggled update repository and state',
+      build: () {
+        final list = CuratedListModel(
+          id: 'list-1',
+          title: 'Top Sci-Fi',
+          authorUid: 'uid-2',
+          authorName: 'Paul',
+          movies: const [CuratedListMovie(movieId: 438631, title: 'Dune')],
+          createdAt: DateTime(2026, 1, 1),
+        );
+        when(() => repository.watchProfile('uid-1'))
+            .thenAnswer((_) => Stream.value(sampleProfile));
+        when(() => repository.watchRecentReviews())
+            .thenAnswer((_) => Stream.value(const []));
+        when(() => repository.watchCuratedLists())
+            .thenAnswer((_) => Stream.value([list]));
+        when(() => repository.publishCuratedList(any()))
+            .thenAnswer((_) async {});
+        when(
+          () => repository.toggleCuratedListLike(
+            listId: 'list-1',
+            uid: 'uid-1',
+            currentlyLiked: false,
+          ),
+        ).thenAnswer((_) async {});
+        return CommunityBloc(repository);
+      },
+      act: (bloc) async {
+        bloc.add(
+          const CommunityUserBound(uid: 'uid-1', email: 'yami@cinelist.app'),
+        );
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(
+          CommunityCuratedListLikeToggled(bloc.state.curatedLists.first),
+        );
+        bloc.add(
+          const CommunityCuratedListPublished(
+            title: 'Nolan Favorites',
+            movies: [CuratedListMovie(movieId: 157336, title: 'Interstellar')],
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+      },
+      verify: (bloc) {
+        expect(bloc.state.curatedLists.first.isLikedBy('uid-1'), isTrue);
+        verify(() => repository.publishCuratedList(any())).called(1);
+        verify(
+          () => repository.toggleCuratedListLike(
+            listId: 'list-1',
+            uid: 'uid-1',
+            currentlyLiked: false,
+          ),
+        ).called(1);
+      },
+    );
+
+    blocTest<CommunityBloc, CommunityState>(
+      'CommunityCuratedListMoviesSynced updates published list movies automatically',
+      build: () {
+        final list = CuratedListModel(
+          id: 'uid-1_col-1',
+          collectionId: 'col-1',
+          title: 'Top Sci-Fi',
+          authorUid: 'uid-1',
+          authorName: 'Yami',
+          movies: const [CuratedListMovie(movieId: 438631, title: 'Dune')],
+          createdAt: DateTime(2026, 1, 1),
+        );
+        when(() => repository.watchProfile('uid-1'))
+            .thenAnswer((_) => Stream.value(sampleProfile));
+        when(() => repository.watchRecentReviews())
+            .thenAnswer((_) => Stream.value(const []));
+        when(() => repository.watchCuratedLists())
+            .thenAnswer((_) => Stream.value([list]));
+        when(
+          () => repository.syncCuratedListMovies(
+            listId: 'uid-1_col-1',
+            movies: any(named: 'movies'),
+          ),
+        ).thenAnswer((_) async {});
+        return CommunityBloc(repository);
+      },
+      act: (bloc) async {
+        bloc.add(
+          const CommunityUserBound(uid: 'uid-1', email: 'yami@cinelist.app'),
+        );
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(
+          const CommunityCuratedListMoviesSynced(
+            listId: 'uid-1_col-1',
+            movies: [
+              CuratedListMovie(movieId: 438631, title: 'Dune'),
+              CuratedListMovie(movieId: 157336, title: 'Interstellar'),
+            ],
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+      },
+      verify: (bloc) {
+        expect(bloc.state.curatedLists.first.movies, hasLength(2));
+        verify(
+          () => repository.syncCuratedListMovies(
+            listId: 'uid-1_col-1',
+            movies: any(named: 'movies'),
+          ),
+        ).called(1);
+      },
+    );
   });
 }

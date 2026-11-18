@@ -125,7 +125,7 @@ class _WriteReviewDialogState extends State<WriteReviewDialog> {
               value: _hasSpoilers,
               onChanged: (val) => setState(() => _hasSpoilers = val),
               contentPadding: EdgeInsets.zero,
-              activeColor: AppColors.pacificBlue,
+              activeThumbColor: AppColors.pacificBlue,
               title: const Text(
                 'Contains Spoilers',
                 style: TextStyle(
@@ -136,10 +136,7 @@ class _WriteReviewDialogState extends State<WriteReviewDialog> {
               ),
               subtitle: const Text(
                 'Hide review text until readers tap to reveal',
-                style: TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 11.5,
-                ),
+                style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
               ),
             ),
           ],

@@ -50,7 +50,8 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> _showForgotPasswordDialog() async {
     final submittedEmail = await showDialog<String>(
       context: context,
-      builder: (_) => _ForgotPasswordDialog(initialEmail: _emailController.text),
+      builder: (_) =>
+          _ForgotPasswordDialog(initialEmail: _emailController.text),
     );
 
     if (submittedEmail != null && mounted) {

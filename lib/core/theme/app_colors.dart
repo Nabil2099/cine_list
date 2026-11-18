@@ -26,4 +26,5 @@ abstract final class AppColors {
   static const Color success = Color(0xFF2EC4B6);
   static const Color error = Color(0xFFE05A6D);
   static const Color warning = Color(0xFFE5A93B);
+  static const Color creatorEmerald = Color(0xFF3E8E6E);
 }

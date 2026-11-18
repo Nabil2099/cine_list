@@ -57,4 +57,3 @@ final class DiscoverRetried extends DiscoverFeedLoadEvent {
 final class DiscoverNextPageLoaded extends DiscoverEvent {
   const DiscoverNextPageLoaded();
 }
-

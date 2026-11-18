@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/app_exception.dart';
+import '../models/community_poll_model.dart';
+import '../models/curated_list_model.dart';
 import '../models/movie_review_model.dart';
 import '../models/review_report_model.dart';
 import '../models/user_profile_model.dart';
@@ -15,6 +17,8 @@ class CommunityRepository {
 
   static const String reviewsCollection = 'reviews';
   static const String reportsCollection = 'reports';
+  static const String pollsCollection = 'community_polls';
+  static const String listsCollection = 'community_lists';
   static const String adminsCollection = 'admins';
   static const String moderatorsCollection = 'moderators';
   static const String bannedUsersCollection = 'banned_users';
@@ -32,6 +36,14 @@ class CommunityRepository {
 
   CollectionReference<Map<String, dynamic>> get _reportsRef {
     return _firestore.collection(reportsCollection);
+  }
+
+  CollectionReference<Map<String, dynamic>> get _pollsRef {
+    return _firestore.collection(pollsCollection);
+  }
+
+  CollectionReference<Map<String, dynamic>> get _listsRef {
+    return _firestore.collection(listsCollection);
   }
 
   CollectionReference<Map<String, dynamic>> get _adminsRef {
@@ -444,6 +456,143 @@ class CommunityRepository {
       throw WatchlistException(_mapError(e), code: e.code);
     } catch (_) {
       throw const WatchlistException('Could not delete review.');
+    }
+  }
+
+  Stream<CommunityPollModel?> watchPinnedPoll() {
+    return _pollsRef
+        .orderBy('createdAt', descending: true)
+        .limit(5)
+        .snapshots()
+        .map((snap) {
+          for (final doc in snap.docs) {
+            final poll = CommunityPollModel.fromMap(doc.id, doc.data());
+            if (poll.isPinned && poll.options.length >= 2) {
+              return poll;
+            }
+          }
+          return null;
+        });
+  }
+
+  Future<void> createPoll({
+    required String question,
+    required List<String> options,
+    required String createdByUid,
+  }) async {
+    try {
+      final cleanOptions = options
+          .map((o) => o.trim())
+          .where((o) => o.isNotEmpty)
+          .toList();
+      final doc = _pollsRef.doc();
+      final poll = CommunityPollModel(
+        id: doc.id,
+        question: question.trim(),
+        options: cleanOptions,
+        createdByUid: createdByUid,
+        createdAt: DateTime.now(),
+      );
+      await doc.set(poll.toFirestoreMap());
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not create community poll.');
+    }
+  }
+
+  Future<void> voteOnPoll({
+    required String pollId,
+    required String uid,
+    required int optionIndex,
+  }) async {
+    try {
+      await _pollsRef.doc(pollId).update({'votesByUid.$uid': optionIndex});
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not submit your vote.');
+    }
+  }
+
+  Future<void> deletePoll(String pollId) async {
+    try {
+      await _pollsRef.doc(pollId).delete();
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not delete poll.');
+    }
+  }
+
+  Stream<List<CuratedListModel>> watchCuratedLists({int limit = 30}) {
+    return _listsRef
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map((doc) => CuratedListModel.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
+  }
+
+  Future<void> publishCuratedList(CuratedListModel list) async {
+    try {
+      final doc =
+          (list.collectionId != null && list.collectionId!.trim().isNotEmpty)
+          ? _listsRef.doc(
+              CuratedListModel.docIdFor(list.authorUid, list.collectionId!),
+            )
+          : _listsRef.doc();
+      await doc.set(list.toFirestoreMap());
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not publish curated list.');
+    }
+  }
+
+  Future<void> syncCuratedListMovies({
+    required String listId,
+    required List<CuratedListMovie> movies,
+  }) async {
+    try {
+      await _listsRef.doc(listId).update({
+        'movies': movies.map((m) => m.toMap()).toList(),
+      });
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not sync curated list movies.');
+    }
+  }
+
+  Future<void> toggleCuratedListLike({
+    required String listId,
+    required String uid,
+    required bool currentlyLiked,
+  }) async {
+    try {
+      await _listsRef.doc(listId).update({
+        'likedBy': currentlyLiked
+            ? FieldValue.arrayRemove([uid])
+            : FieldValue.arrayUnion([uid]),
+      });
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not update list upvote.');
+    }
+  }
+
+  Future<void> deleteCuratedList(String listId) async {
+    try {
+      await _listsRef.doc(listId).delete();
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not delete curated list.');
     }
   }
 

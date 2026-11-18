@@ -106,25 +106,23 @@ class UserProfileDialog extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.khakiBeige.withValues(alpha: 0.18),
+                        color: AppColors.creatorEmerald.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(
-                          color: AppColors.khakiBeige.withValues(alpha: 0.65),
+                          color: AppColors.creatorEmerald.withValues(
+                            alpha: 0.65,
+                          ),
                         ),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            Icons.verified_user_rounded,
-                            size: 14,
-                            color: AppColors.khakiBeige,
-                          ),
+                          CreatorEmblemIcon(size: 14),
                           SizedBox(width: 5),
                           Text(
-                            'Admin',
+                            'Creator',
                             style: TextStyle(
-                              color: AppColors.khakiBeige,
+                              color: AppColors.creatorEmerald,
                               fontSize: 11.5,
                               fontWeight: FontWeight.w800,
                             ),
@@ -232,7 +230,9 @@ class UserProfileDialog extends StatelessWidget {
                   : AppColors.black,
             ),
             icon: Icon(
-              isFollowing ? Icons.check_rounded : Icons.person_add_alt_1_rounded,
+              isFollowing
+                  ? Icons.check_rounded
+                  : Icons.person_add_alt_1_rounded,
               size: 16,
             ),
             label: Text(isFollowing ? 'Following' : 'Follow'),

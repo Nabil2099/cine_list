@@ -114,9 +114,8 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not pick image: $e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not pick image: $e')));
       }
     } finally {
       if (mounted) setState(() => _pickingImage = false);

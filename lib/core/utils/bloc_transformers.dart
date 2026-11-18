@@ -150,4 +150,3 @@ EventTransformer<E> debounceRestartable<E>(Duration duration) {
     return controller.stream;
   };
 }
-

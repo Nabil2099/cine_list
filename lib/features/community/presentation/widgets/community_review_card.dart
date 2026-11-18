@@ -18,7 +18,9 @@ class CommunityReviewCard extends StatelessWidget {
     this.isAuthorAdmin = false,
     this.isAuthorModerator = false,
     this.showMovieHeader = true,
+    this.isInWatchlist = false,
     this.onMovieTap,
+    this.onToggleWatchlist,
     this.onAuthorTap,
     this.onToggleLike,
     this.onToggleDislike,
@@ -36,7 +38,9 @@ class CommunityReviewCard extends StatelessWidget {
   final bool isAuthorAdmin;
   final bool isAuthorModerator;
   final bool showMovieHeader;
+  final bool isInWatchlist;
   final VoidCallback? onMovieTap;
+  final VoidCallback? onToggleWatchlist;
   final VoidCallback? onAuthorTap;
   final VoidCallback? onToggleLike;
   final VoidCallback? onToggleDislike;
@@ -110,24 +114,30 @@ class CommunityReviewCard extends StatelessWidget {
                                         vertical: 1.5,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: AppColors.khakiBeige.withValues(
-                                          alpha: 0.18,
-                                        ),
+                                        color: AppColors.creatorEmerald
+                                            .withValues(alpha: 0.18),
                                         borderRadius: BorderRadius.circular(
                                           999,
                                         ),
                                         border: Border.all(
-                                          color: AppColors.khakiBeige
-                                              .withValues(alpha: 0.6),
+                                          color: AppColors.creatorEmerald
+                                              .withValues(alpha: 0.65),
                                         ),
                                       ),
-                                      child: const Text(
-                                        'Admin',
-                                        style: TextStyle(
-                                          color: AppColors.khakiBeige,
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.w800,
-                                        ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          CreatorEmblemIcon(size: 11),
+                                          SizedBox(width: 3),
+                                          Text(
+                                            'Creator',
+                                            style: TextStyle(
+                                              color: AppColors.creatorEmerald,
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ] else if (isAuthorModerator) ...[
@@ -288,6 +298,23 @@ class CommunityReviewCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (onToggleWatchlist != null)
+                      IconButton(
+                        onPressed: onToggleWatchlist,
+                        icon: Icon(
+                          isInWatchlist
+                              ? Icons.bookmark_rounded
+                              : Icons.bookmark_add_outlined,
+                          color: isInWatchlist
+                              ? AppColors.pacificBlue
+                              : AppColors.textSecondary,
+                          size: 20,
+                        ),
+                        tooltip: isInWatchlist
+                            ? 'Remove from Watchlist'
+                            : 'Save to Watchlist',
+                        visualDensity: VisualDensity.compact,
+                      ),
                     const Icon(
                       Icons.chevron_right_rounded,
                       color: AppColors.textMuted,

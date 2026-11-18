@@ -115,14 +115,12 @@ class _ReportReviewDialogState extends State<ReportReviewDialog> {
         ),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-          onPressed: () => Navigator.of(context).pop((
-            reason: _selected,
-            details: _detailsController.text.trim(),
-          )),
+          onPressed: () => Navigator.of(
+            context,
+          ).pop((reason: _selected, details: _detailsController.text.trim())),
           child: const Text('Submit Report'),
         ),
       ],
     );
   }
 }
-

@@ -118,6 +118,7 @@ class ProfileScreen extends StatelessWidget {
                       GestureDetector(
                         onTap: () => _editProfile(context, profile),
                         child: Stack(
+                          clipBehavior: Clip.none,
                           children: [
                             UserAvatar(
                               avatarKey: profile.avatarKey,
@@ -125,7 +126,7 @@ class ProfileScreen extends StatelessWidget {
                               reputation: profile.reputation,
                               isAdmin: communityState.isAdmin,
                               isModerator: communityState.isModerator,
-                              showRankBadge: false,
+                              showRankBadge: communityState.isAdmin,
                               radius: 44,
                             ),
                             Positioned(
@@ -173,29 +174,25 @@ class ProfileScreen extends StatelessWidget {
                                 vertical: 3,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.khakiBeige.withValues(
+                                color: AppColors.creatorEmerald.withValues(
                                   alpha: 0.18,
                                 ),
                                 borderRadius: BorderRadius.circular(999),
                                 border: Border.all(
-                                  color: AppColors.khakiBeige.withValues(
-                                    alpha: 0.65,
+                                  color: AppColors.creatorEmerald.withValues(
+                                    alpha: 0.7,
                                   ),
                                 ),
                               ),
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(
-                                    Icons.verified_user_rounded,
-                                    size: 13,
-                                    color: AppColors.khakiBeige,
-                                  ),
+                                  CreatorEmblemIcon(size: 14),
                                   SizedBox(width: 4),
                                   Text(
-                                    'Admin',
+                                    'Creator',
                                     style: TextStyle(
-                                      color: AppColors.khakiBeige,
+                                      color: AppColors.creatorEmerald,
                                       fontSize: 11.5,
                                       fontWeight: FontWeight.w800,
                                     ),
@@ -454,17 +451,15 @@ class ProfileScreen extends StatelessWidget {
                           color: AppColors.surfaceBorder,
                         ),
                         ListTile(
-                          leading: Icon(
-                            communityState.isAdmin
-                                ? Icons.admin_panel_settings_outlined
-                                : Icons.gavel_rounded,
-                            color: communityState.isAdmin
-                                ? AppColors.khakiBeige
-                                : AppColors.pacificBlue,
-                          ),
+                          leading: communityState.isAdmin
+                              ? const CreatorEmblemIcon(size: 22)
+                              : const Icon(
+                                  Icons.gavel_rounded,
+                                  color: AppColors.pacificBlue,
+                                ),
                           title: Text(
                             communityState.isAdmin
-                                ? 'Admin Moderation Panel'
+                                ? 'Creator Moderation Panel'
                                 : 'Moderation Panel',
                           ),
                           subtitle: Text(

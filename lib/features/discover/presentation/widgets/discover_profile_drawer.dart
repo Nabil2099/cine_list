@@ -93,10 +93,10 @@ class DiscoverProfileDrawer extends StatelessWidget {
                               runSpacing: 4,
                               children: [
                                 if (communityState.isAdmin)
-                                  _DrawerPill(
-                                    label: 'Admin',
-                                    color: AppColors.khakiBeige,
-                                    icon: Icons.verified_user_rounded,
+                                  const _DrawerPill(
+                                    label: 'Creator',
+                                    color: AppColors.creatorEmerald,
+                                    leading: CreatorEmblemIcon(size: 12),
                                   )
                                 else if (communityState.isModerator)
                                   _DrawerPill(
@@ -244,17 +244,15 @@ class DiscoverProfileDrawer extends StatelessWidget {
                   if (communityState.isStaff) ...[
                     const Divider(height: 1, color: AppColors.surfaceBorder),
                     ListTile(
-                      leading: Icon(
-                        communityState.isAdmin
-                            ? Icons.admin_panel_settings_outlined
-                            : Icons.gavel_rounded,
-                        color: communityState.isAdmin
-                            ? AppColors.khakiBeige
-                            : AppColors.pacificBlue,
-                      ),
+                      leading: communityState.isAdmin
+                          ? const CreatorEmblemIcon(size: 20)
+                          : const Icon(
+                              Icons.gavel_rounded,
+                              color: AppColors.pacificBlue,
+                            ),
                       title: Text(
                         communityState.isAdmin
-                            ? 'Admin Moderation Panel'
+                            ? 'Creator Moderation Panel'
                             : 'Moderation Panel',
                       ),
                       trailing: const Icon(Icons.chevron_right_rounded),
@@ -293,12 +291,14 @@ class _DrawerPill extends StatelessWidget {
   const _DrawerPill({
     required this.label,
     required this.color,
-    required this.icon,
+    this.icon,
+    this.leading,
   });
 
   final String label;
   final Color color;
-  final IconData icon;
+  final IconData? icon;
+  final Widget? leading;
 
   @override
   Widget build(BuildContext context) {
@@ -312,7 +312,10 @@ class _DrawerPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 11, color: color),
+          if (leading != null)
+            leading!
+          else if (icon != null)
+            Icon(icon, size: 11, color: color),
           const SizedBox(width: 4),
           Text(
             label,

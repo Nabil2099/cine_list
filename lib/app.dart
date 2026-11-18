@@ -8,9 +8,11 @@ import 'core/theme/app_theme.dart';
 import 'features/ai_chat/presentation/cubit/ai_chat_cubit.dart';
 import 'features/auth/presentation/cubit/auth_cubit.dart';
 import 'features/auth/presentation/cubit/auth_state.dart';
+import 'features/community/data/models/curated_list_model.dart';
 import 'features/community/presentation/bloc/community_bloc.dart';
 import 'features/discover/presentation/bloc/discover_bloc.dart';
 import 'features/watchlist/presentation/cubit/watchlist_cubit.dart';
+import 'features/watchlist/presentation/cubit/watchlist_state.dart';
 
 /// Root CineList widget wiring global BLoCs/Cubits and GoRouter navigation.
 class CineListApp extends StatefulWidget {
@@ -36,10 +38,7 @@ class _CineListAppState extends State<CineListApp> {
     _watchlistCubit = sl<WatchlistCubit>();
     _aiChatCubit = sl<AiChatCubit>();
     _communityBloc = sl<CommunityBloc>();
-    _appRouter = AppRouter(
-      authCubit: _authCubit,
-      discoverBloc: _discoverBloc,
-    );
+    _appRouter = AppRouter(authCubit: _authCubit, discoverBloc: _discoverBloc);
 
     final currentUser = _authCubit.state.user;
     if (currentUser != null) {
@@ -75,21 +74,72 @@ class _CineListAppState extends State<CineListApp> {
         BlocProvider<AiChatCubit>.value(value: _aiChatCubit),
         BlocProvider<CommunityBloc>.value(value: _communityBloc),
       ],
-      child: BlocListener<AuthCubit, AuthState>(
-        listenWhen: (prev, curr) =>
-            prev.status != curr.status ||
-            prev.user?.uid != curr.user?.uid ||
-            prev.user?.displayName != curr.user?.displayName,
-        listener: (context, state) {
-          _watchlistCubit.bindUser(state.user?.uid);
-          _communityBloc.add(
-            CommunityUserBound(
-              uid: state.user?.uid,
-              email: state.user?.email,
-              displayName: state.user?.displayName,
-            ),
-          );
-        },
+      child: MultiBlocListener(
+        listeners: [
+          BlocListener<AuthCubit, AuthState>(
+            listenWhen: (prev, curr) =>
+                prev.status != curr.status ||
+                prev.user?.uid != curr.user?.uid ||
+                prev.user?.displayName != curr.user?.displayName,
+            listener: (context, state) {
+              _watchlistCubit.bindUser(state.user?.uid);
+              _communityBloc.add(
+                CommunityUserBound(
+                  uid: state.user?.uid,
+                  email: state.user?.email,
+                  displayName: state.user?.displayName,
+                ),
+              );
+            },
+          ),
+          BlocListener<WatchlistCubit, WatchlistState>(
+            listenWhen: (prev, curr) =>
+                prev.collections != curr.collections ||
+                prev.movies != curr.movies,
+            listener: (context, watchlistState) {
+              final uid = _communityBloc.currentUid;
+              if (uid == null) return;
+
+              final moviesById = {
+                for (final m in watchlistState.movies) m.movieId: m,
+              };
+              final collectionsById = {
+                for (final c in watchlistState.collections) c.id: c,
+              };
+
+              for (final published in _communityBloc.state.curatedLists) {
+                if (published.authorUid != uid ||
+                    published.collectionId == null) {
+                  continue;
+                }
+                final col = collectionsById[published.collectionId];
+                if (col == null) continue;
+
+                final syncedMovies = col.movieIds
+                    .map((id) => moviesById[id])
+                    .where((m) => m != null)
+                    .map(
+                      (m) => CuratedListMovie(
+                        movieId: m!.movieId,
+                        title: m.title,
+                        posterPath: m.posterPath,
+                      ),
+                    )
+                    .toList();
+
+                if (syncedMovies.isNotEmpty &&
+                    syncedMovies != published.movies) {
+                  _communityBloc.add(
+                    CommunityCuratedListMoviesSynced(
+                      listId: published.id,
+                      movies: syncedMovies,
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ],
         child: MaterialApp.router(
           title: AppConstants.appName,
           debugShowCheckedModeBanner: false,

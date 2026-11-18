@@ -7,6 +7,8 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/empty_state_view.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/loading_view.dart';
+import '../../../community/data/models/curated_list_model.dart';
+import '../../../community/presentation/bloc/community_bloc.dart';
 import '../../data/models/watchlist_movie_model.dart';
 import '../cubit/watchlist_cubit.dart';
 import '../cubit/watchlist_state.dart';
@@ -539,6 +541,72 @@ class _CollectionsBar extends StatelessWidget {
               onPressed: () => CreateCollectionDialog.show(context),
             ),
           ),
+          if (state.selectedCollection != null &&
+              state.selectedCollection!.movieIds.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: ActionChip(
+                avatar: const Icon(
+                  Icons.public_rounded,
+                  size: 16,
+                  color: AppColors.khakiBeige,
+                ),
+                label: const Text('Share to Community'),
+                labelStyle: const TextStyle(
+                  color: AppColors.khakiBeige,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                backgroundColor: AppColors.surfaceCard,
+                side: BorderSide(
+                  color: AppColors.khakiBeige.withValues(alpha: 0.45),
+                ),
+                onPressed: () async {
+                  final col = state.selectedCollection!;
+                  final byId = {for (final m in state.movies) m.movieId: m};
+                  final movies = col.movieIds
+                      .map((id) => byId[id])
+                      .whereType<WatchlistMovieModel>()
+                      .map(
+                        (m) => CuratedListMovie(
+                          movieId: m.movieId,
+                          title: m.title,
+                          posterPath: m.posterPath,
+                        ),
+                      )
+                      .toList();
+                  if (movies.isEmpty) return;
+
+                  final description = await showDialog<String>(
+                    context: context,
+                    builder: (_) => _PublishCuratedListDialog(
+                      collectionName: col.name,
+                      movieCount: movies.length,
+                    ),
+                  );
+
+                  if (description != null && context.mounted) {
+                    context.read<CommunityBloc>().add(
+                      CommunityCuratedListPublished(
+                        collectionId: col.id,
+                        title: col.name,
+                        description: description,
+                        movies: movies,
+                      ),
+                    );
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Published "${col.name}" to Community Lists! Future changes will auto-sync.',
+                          ),
+                        ),
+                      );
+                  }
+                },
+              ),
+            ),
         ],
       ),
     );
@@ -577,6 +645,78 @@ class _CollectionChip extends StatelessWidget {
           fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
         ),
       ),
+    );
+  }
+}
+
+class _PublishCuratedListDialog extends StatefulWidget {
+  const _PublishCuratedListDialog({
+    required this.collectionName,
+    required this.movieCount,
+  });
+
+  final String collectionName;
+  final int movieCount;
+
+  @override
+  State<_PublishCuratedListDialog> createState() =>
+      _PublishCuratedListDialogState();
+}
+
+class _PublishCuratedListDialogState extends State<_PublishCuratedListDialog> {
+  final _descController = TextEditingController();
+
+  @override
+  void dispose() {
+    _descController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(
+        'Share "${widget.collectionName}"',
+        style: const TextStyle(color: AppColors.khakiBeige),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Publish this ${widget.movieCount}-movie collection to the Community Lists tab.',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _descController,
+            maxLines: 2,
+            maxLength: 140,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              hintText: 'Optional short description...',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.pacificBlue,
+            foregroundColor: AppColors.black,
+          ),
+          onPressed: () =>
+              Navigator.of(context).pop(_descController.text.trim()),
+          child: const Text('Publish'),
+        ),
+      ],
     );
   }
 }

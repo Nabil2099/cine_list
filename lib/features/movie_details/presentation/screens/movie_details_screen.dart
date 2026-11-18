@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/error/app_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/error_view.dart';
@@ -15,6 +16,7 @@ import '../../../../core/widgets/loading_view.dart';
 import '../../../../core/widgets/rating_badge.dart';
 import '../../../../shared/models/movie_summary.dart';
 import '../../../../shared/widgets/movie_poster.dart';
+import '../../../ai_chat/data/repositories/ai_chat_repository.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../community/data/models/movie_review_model.dart';
 import '../../../community/presentation/bloc/community_bloc.dart';
@@ -545,7 +547,11 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
     );
     if (result != null && context.mounted) {
       final isVerifiedWatch =
-          context.read<WatchlistCubit>().state.findById(details.id)?.isWatched ??
+          context
+              .read<WatchlistCubit>()
+              .state
+              .findById(details.id)
+              ?.isWatched ??
           false;
       context.read<CommunityBloc>().add(
         CommunityReviewSubmitted(
@@ -620,6 +626,13 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
+          if (movieReviews.length >= 3) ...[
+            _CommunityConsensusCard(
+              movieTitle: details.title,
+              reviews: movieReviews,
+            ),
+            const SizedBox(height: 10),
+          ],
           if (movieReviews.isEmpty)
             Container(
               width: double.infinity,
@@ -631,81 +644,73 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
               ),
               child: const Text(
                 'No community reviews yet. Be the first to share your thoughts!',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13.5),
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13.5,
+                ),
               ),
             )
           else
             Column(
-              children: movieReviews
-                  .map(
-                    (review) {
-                      final authorProfile =
-                          communityState.userProfilesByUid[review.uid];
-                      final isAuthorAdmin = communityState.adminUids.contains(
-                        review.uid,
+              children: movieReviews.map((review) {
+                final authorProfile =
+                    communityState.userProfilesByUid[review.uid];
+                final isAuthorAdmin = communityState.adminUids.contains(
+                  review.uid,
+                );
+                final isAuthorMod = communityState.moderatorUids.contains(
+                  review.uid,
+                );
+                final bloc = context.read<CommunityBloc>();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: CommunityReviewCard(
+                    review: review,
+                    isOwner: review.uid == currentUid,
+                    isLiked: review.isLikedBy(currentUid),
+                    isDisliked: review.isDislikedBy(currentUid),
+                    authorPhotoBase64: authorProfile?.photoBase64,
+                    authorReputation: authorProfile?.reputation ?? 0,
+                    isAuthorAdmin: isAuthorAdmin,
+                    isAuthorModerator: isAuthorMod,
+                    showMovieHeader: false,
+                    onAuthorTap: () => UserProfileDialog.show(
+                      context,
+                      uid: review.uid,
+                      fallbackName: review.authorName,
+                      fallbackAvatarKey: review.authorAvatarKey,
+                    ),
+                    onToggleLike: () => bloc.add(
+                      CommunityReactionToggled(review: review, isLike: true),
+                    ),
+                    onToggleDislike: () => bloc.add(
+                      CommunityReactionToggled(review: review, isLike: false),
+                    ),
+                    onReport: () async {
+                      final res = await ReportReviewDialog.show(
+                        context,
+                        authorName: review.authorName,
                       );
-                      final isAuthorMod = communityState.moderatorUids.contains(
-                        review.uid,
-                      );
-                      final bloc = context.read<CommunityBloc>();
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: CommunityReviewCard(
-                          review: review,
-                          isOwner: review.uid == currentUid,
-                          isLiked: review.isLikedBy(currentUid),
-                          isDisliked: review.isDislikedBy(currentUid),
-                          authorPhotoBase64: authorProfile?.photoBase64,
-                          authorReputation: authorProfile?.reputation ?? 0,
-                          isAuthorAdmin: isAuthorAdmin,
-                          isAuthorModerator: isAuthorMod,
-                          showMovieHeader: false,
-                          onAuthorTap: () => UserProfileDialog.show(
-                            context,
-                            uid: review.uid,
-                            fallbackName: review.authorName,
-                            fallbackAvatarKey: review.authorAvatarKey,
+                      if (res != null && context.mounted) {
+                        bloc.add(
+                          CommunityReviewReported(
+                            review: review,
+                            reason: res.reason,
+                            details: res.details,
                           ),
-                          onToggleLike: () => bloc.add(
-                            CommunityReactionToggled(
-                              review: review,
-                              isLike: true,
-                            ),
-                          ),
-                          onToggleDislike: () => bloc.add(
-                            CommunityReactionToggled(
-                              review: review,
-                              isLike: false,
-                            ),
-                          ),
-                          onReport: () async {
-                            final res = await ReportReviewDialog.show(
-                              context,
-                              authorName: review.authorName,
-                            );
-                            if (res != null && context.mounted) {
-                              bloc.add(
-                                CommunityReviewReported(
-                                  review: review,
-                                  reason: res.reason,
-                                  details: res.details,
-                                ),
-                              );
-                            }
-                          },
-                          onShare: () => SharePlus.instance.share(
-                            ShareParams(
-                              text:
-                                  '${review.authorName} rated "${review.movieTitle}" ${review.rating}/5 on CineList:\n\n"${review.comment}"\n\nhttps://www.themoviedb.org/movie/${review.movieId}',
-                            ),
-                          ),
-                          onDelete: () =>
-                              bloc.add(CommunityReviewDeleted(review.id)),
-                        ),
-                      );
+                        );
+                      }
                     },
-                  )
-                  .toList(),
+                    onShare: () => SharePlus.instance.share(
+                      ShareParams(
+                        text:
+                            '${review.authorName} rated "${review.movieTitle}" ${review.rating}/5 on CineList:\n\n"${review.comment}"\n\nhttps://www.themoviedb.org/movie/${review.movieId}',
+                      ),
+                    ),
+                    onDelete: () => bloc.add(CommunityReviewDeleted(review.id)),
+                  ),
+                );
+              }).toList(),
             ),
         ],
       ),
@@ -811,6 +816,152 @@ class _CircleIconButton extends StatelessWidget {
           ),
           child: Icon(icon, color: iconColor, size: 20),
         ),
+      ),
+    );
+  }
+}
+
+class _CommunityConsensusCard extends StatefulWidget {
+  const _CommunityConsensusCard({
+    required this.movieTitle,
+    required this.reviews,
+  });
+
+  final String movieTitle;
+  final List<MovieReviewModel> reviews;
+
+  @override
+  State<_CommunityConsensusCard> createState() =>
+      _CommunityConsensusCardState();
+}
+
+class _CommunityConsensusCardState extends State<_CommunityConsensusCard> {
+  String? _summary;
+  String? _error;
+  bool _isLoading = false;
+
+  Future<void> _generate() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final result = await sl<AiChatRepository>().summarizeCommunityReviews(
+        movieTitle: widget.movieTitle,
+        reviews: widget.reviews,
+      );
+      if (!mounted) return;
+      setState(() {
+        _summary = result;
+        _isLoading = false;
+      });
+    } on AppException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Could not generate AI consensus right now.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_summary == null && !_isLoading && _error == null) {
+      return OutlinedButton.icon(
+        onPressed: _generate,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.pacificBlue,
+          side: BorderSide(color: AppColors.pacificBlue.withValues(alpha: 0.5)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        icon: const Icon(Icons.auto_awesome_rounded, size: 17),
+        label: const Text('AI Community Consensus (Spoiler-Free)'),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.pacificBlue.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.pacificBlue.withValues(alpha: 0.45),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.auto_awesome_rounded,
+                color: AppColors.pacificBlue,
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'AI Community Consensus',
+                style: TextStyle(
+                  color: AppColors.pacificBlue,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              if (!_isLoading)
+                InkWell(
+                  onTap: _generate,
+                  child: const Icon(
+                    Icons.refresh_rounded,
+                    size: 16,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_isLoading)
+            const Row(
+              children: [
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Summarizing community reviews...',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ],
+            )
+          else if (_error != null)
+            Text(
+              _error!,
+              style: const TextStyle(color: AppColors.error, fontSize: 12.5),
+            )
+          else
+            Text(
+              _summary!,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+                height: 1.45,
+              ),
+            ),
+        ],
       ),
     );
   }

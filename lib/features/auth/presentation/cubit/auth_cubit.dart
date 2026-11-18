@@ -67,7 +67,9 @@ class AuthCubit extends Cubit<AuthState> {
 
   AuthStatus _statusForUser(User? user) {
     if (user == null) return AuthStatus.unauthenticated;
-    return user.emailVerified ? AuthStatus.authenticated : AuthStatus.unverified;
+    return user.emailVerified
+        ? AuthStatus.authenticated
+        : AuthStatus.unverified;
   }
 
   void _onAuthStateChanged(User? user) {
@@ -194,8 +196,7 @@ class AuthCubit extends Cubit<AuthState> {
             status: AuthStatus.unverified,
             user: user,
             isLoading: false,
-            errorMessage:
-                'Email is not verified yet. Please check your inbox or spam folder.',
+            errorMessage: 'Email is not verified yet. Please check your inbox or spam folder.',
           ),
         );
       }

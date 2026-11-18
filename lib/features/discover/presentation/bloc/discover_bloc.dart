@@ -153,7 +153,11 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
     emit(state.copyWith(isLoadingMore: true));
 
     if (state.isSearching) {
-      await _performSearch(state.searchQuery.trim(), page: nextPage, emit: emit);
+      await _performSearch(
+        state.searchQuery.trim(),
+        page: nextPage,
+        emit: emit,
+      );
     } else if (state.selectedGenreId != null) {
       await _loadGenre(state.selectedGenreId!, page: nextPage, emit: emit);
     } else {
@@ -363,4 +367,3 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
     return super.close();
   }
 }
-

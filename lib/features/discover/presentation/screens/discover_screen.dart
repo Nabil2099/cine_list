@@ -81,160 +81,160 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       drawer: isWideWeb ? null : const DiscoverProfileDrawer(),
       body: SafeArea(
         child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: AppConstants.maxContentWidth,
-          ),
-          child: RefreshIndicator(
-            color: AppColors.pacificBlue,
-            backgroundColor: AppColors.surfaceElevated,
-            onRefresh: () async {
-              final bloc = context.read<DiscoverBloc>();
-              bloc.add(const DiscoverRetried());
-              await bloc.stream.firstWhere(
-                (s) => s.status != DiscoverStatus.loading,
-              );
-            },
-            child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-                  sliver: SliverToBoxAdapter(
-                    child: _DiscoverHeader(
-                      greetingName: greetingName,
-                      showDrawerButton: !isWideWeb,
-                      userEmail: userEmail,
-                      onSignOut: () => context.read<AuthCubit>().signOut(),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: AppConstants.maxContentWidth,
+            ),
+            child: RefreshIndicator(
+              color: AppColors.pacificBlue,
+              backgroundColor: AppColors.surfaceElevated,
+              onRefresh: () async {
+                final bloc = context.read<DiscoverBloc>();
+                bloc.add(const DiscoverRetried());
+                await bloc.stream.firstWhere(
+                  (s) => s.status != DiscoverStatus.loading,
+                );
+              },
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: _DiscoverHeader(
+                        greetingName: greetingName,
+                        showDrawerButton: !isWideWeb,
+                        userEmail: userEmail,
+                        onSignOut: () => context.read<AuthCubit>().signOut(),
+                      ),
                     ),
                   ),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                  sliver: SliverToBoxAdapter(
-                    child: BlocBuilder<DiscoverBloc, DiscoverState>(
-                      buildWhen: (prev, curr) =>
-                          prev.searchQuery != curr.searchQuery ||
-                          prev.selectedCategory != curr.selectedCategory ||
-                          prev.selectedGenreId != curr.selectedGenreId,
-                      builder: (context, state) {
-                        if (state.searchQuery.isEmpty &&
-                            _searchController.text.isNotEmpty) {
-                          _searchController.clear();
-                        }
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            MovieSearchBar(
-                              controller: _searchController,
-                              hasText: state.searchQuery.isNotEmpty,
-                              onChanged: (q) => context
-                                  .read<DiscoverBloc>()
-                                  .add(DiscoverSearchChanged(q)),
-                              onClear: () {
-                                _searchController.clear();
-                                context.read<DiscoverBloc>().add(
-                                  const DiscoverSearchCleared(),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 14),
-                            CategoryTabs(
-                              selectedCategory: state.selectedCategory,
-                              isSearchActive:
-                                  state.isSearching ||
-                                  state.selectedGenreId != null,
-                              onSelected: (cat) {
-                                _searchController.clear();
-                                context.read<DiscoverBloc>().add(
-                                  DiscoverCategorySelected(cat),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 10),
-                            GenreFilterBar(
-                              selectedGenreId: state.selectedGenreId,
-                              isSearchActive: state.isSearching,
-                              onSelected: (genreId) {
-                                _searchController.clear();
-                                context.read<DiscoverBloc>().add(
-                                  DiscoverGenreSelected(genreId),
-                                );
-                              },
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                BlocBuilder<DiscoverBloc, DiscoverState>(
-                  builder: (context, state) {
-                    if (state.status == DiscoverStatus.loading ||
-                        state.status == DiscoverStatus.initial) {
-                      return const SliverPadding(
-                        padding: EdgeInsets.only(top: 12),
-                        sliver: SliverToBoxAdapter(
-                          child: LoadingView(useSkeleton: true),
-                        ),
-                      );
-                    }
-
-                    if (state.status == DiscoverStatus.error) {
-                      return SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: ErrorView(
-                          title: state.isAuthConfigError
-                              ? 'TMDB Configuration Needed'
-                              : 'Could Not Load Movies',
-                          message:
-                              state.errorMessage ??
-                              'Unable to fetch movies right now.',
-                          onRetry: () => context.read<DiscoverBloc>().add(
-                            const DiscoverRetried(),
-                          ),
-                        ),
-                      );
-                    }
-
-                    if (state.status == DiscoverStatus.empty) {
-                      return SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: EmptyStateView(
-                          icon: Icons.search_off_rounded,
-                          title: state.isSearching
-                              ? 'No results found'
-                              : 'No movies available',
-                          message: state.isSearching
-                              ? 'We could not find any movies matching "${state.searchQuery.trim()}".'
-                              : 'Try refreshing or switching to another category.',
-                          actionLabel: state.isSearching
-                              ? 'Clear Search'
-                              : null,
-                          onAction: state.isSearching
-                              ? () {
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: BlocBuilder<DiscoverBloc, DiscoverState>(
+                        buildWhen: (prev, curr) =>
+                            prev.searchQuery != curr.searchQuery ||
+                            prev.selectedCategory != curr.selectedCategory ||
+                            prev.selectedGenreId != curr.selectedGenreId,
+                        builder: (context, state) {
+                          if (state.searchQuery.isEmpty &&
+                              _searchController.text.isNotEmpty) {
+                            _searchController.clear();
+                          }
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              MovieSearchBar(
+                                controller: _searchController,
+                                hasText: state.searchQuery.isNotEmpty,
+                                onChanged: (q) => context
+                                    .read<DiscoverBloc>()
+                                    .add(DiscoverSearchChanged(q)),
+                                onClear: () {
                                   _searchController.clear();
                                   context.read<DiscoverBloc>().add(
                                     const DiscoverSearchCleared(),
                                   );
-                                }
-                              : null,
-                        ),
-                      );
-                    }
+                                },
+                              ),
+                              const SizedBox(height: 14),
+                              CategoryTabs(
+                                selectedCategory: state.selectedCategory,
+                                isSearchActive:
+                                    state.isSearching ||
+                                    state.selectedGenreId != null,
+                                onSelected: (cat) {
+                                  _searchController.clear();
+                                  context.read<DiscoverBloc>().add(
+                                    DiscoverCategorySelected(cat),
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 10),
+                              GenreFilterBar(
+                                selectedGenreId: state.selectedGenreId,
+                                isSearchActive: state.isSearching,
+                                onSelected: (genreId) {
+                                  _searchController.clear();
+                                  context.read<DiscoverBloc>().add(
+                                    DiscoverGenreSelected(genreId),
+                                  );
+                                },
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  BlocBuilder<DiscoverBloc, DiscoverState>(
+                    builder: (context, state) {
+                      if (state.status == DiscoverStatus.loading ||
+                          state.status == DiscoverStatus.initial) {
+                        return const SliverPadding(
+                          padding: EdgeInsets.only(top: 12),
+                          sliver: SliverToBoxAdapter(
+                            child: LoadingView(useSkeleton: true),
+                          ),
+                        );
+                      }
 
-                    return _DiscoverLoadedSlivers(
-                      state: state,
-                      gridColumnsForWidth: _gridColumnsForWidth,
-                      onMovieTap: _openMovieDetails,
-                    );
-                  },
-                ),
-              ],
+                      if (state.status == DiscoverStatus.error) {
+                        return SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: ErrorView(
+                            title: state.isAuthConfigError
+                                ? 'TMDB Configuration Needed'
+                                : 'Could Not Load Movies',
+                            message:
+                                state.errorMessage ??
+                                'Unable to fetch movies right now.',
+                            onRetry: () => context.read<DiscoverBloc>().add(
+                              const DiscoverRetried(),
+                            ),
+                          ),
+                        );
+                      }
+
+                      if (state.status == DiscoverStatus.empty) {
+                        return SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: EmptyStateView(
+                            icon: Icons.search_off_rounded,
+                            title: state.isSearching
+                                ? 'No results found'
+                                : 'No movies available',
+                            message: state.isSearching
+                                ? 'We could not find any movies matching "${state.searchQuery.trim()}".'
+                                : 'Try refreshing or switching to another category.',
+                            actionLabel: state.isSearching
+                                ? 'Clear Search'
+                                : null,
+                            onAction: state.isSearching
+                                ? () {
+                                    _searchController.clear();
+                                    context.read<DiscoverBloc>().add(
+                                      const DiscoverSearchCleared(),
+                                    );
+                                  }
+                                : null,
+                          ),
+                        );
+                      }
+
+                      return _DiscoverLoadedSlivers(
+                        state: state,
+                        gridColumnsForWidth: _gridColumnsForWidth,
+                        onMovieTap: _openMovieDetails,
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
       ),
     );
   }

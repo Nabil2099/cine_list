@@ -7,6 +7,8 @@ import '../../../../core/error/app_exception.dart';
 import '../../../../core/utils/bloc_transformers.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../shared/models/movie_summary.dart';
+import '../../data/models/community_poll_model.dart';
+import '../../data/models/curated_list_model.dart';
 import '../../data/models/movie_review_model.dart';
 import '../../data/models/review_report_model.dart';
 import '../../data/models/user_profile_model.dart';
@@ -27,6 +29,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
   }) : _clock = clock ?? DateTime.now,
        super(const CommunityState()) {
     on<CommunityUserBound>(_onUserBound);
+    on<CommunityRefreshed>(_onRefreshed);
     on<CommunityFeedbackCleared>(_onFeedbackCleared);
     on<CommunityProfileUpdated>(_onProfileUpdated);
     on<CommunitySortChanged>(_onSortChanged);
@@ -42,6 +45,11 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     on<CommunityReactionToggled>(_onReactionToggled);
     on<CommunityReviewReported>(_onReviewReported);
     on<CommunityReviewDeleted>(_onReviewDeleted);
+    on<CommunityPollVoted>(_onPollVoted);
+    on<CommunityCuratedListPublished>(_onCuratedListPublished);
+    on<CommunityCuratedListMoviesSynced>(_onCuratedListMoviesSynced);
+    on<CommunityCuratedListLikeToggled>(_onCuratedListLikeToggled);
+    on<CommunityCuratedListDeleted>(_onCuratedListDeleted);
 
     on<_CommunityProfileReceived>(_onProfileReceived);
     on<_CommunityAllUsersReceived>(_onAllUsersReceived);
@@ -50,6 +58,8 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     on<_CommunityRolesResolved>(_onRolesResolved);
     on<_CommunityReviewsReceived>(_onReviewsReceived);
     on<_CommunityReviewsLoadFailed>(_onReviewsLoadFailed);
+    on<_CommunityPinnedPollReceived>(_onPinnedPollReceived);
+    on<_CommunityCuratedListsReceived>(_onCuratedListsReceived);
   }
 
   static const Duration reactionCooldown = Duration(seconds: 5);
@@ -61,6 +71,8 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
   StreamSubscription<List<UserProfileModel>>? _allUsersSub;
   StreamSubscription<Set<String>>? _adminUidsSub;
   StreamSubscription<Set<String>>? _moderatorUidsSub;
+  StreamSubscription<CommunityPollModel?>? _pollSub;
+  StreamSubscription<List<CuratedListModel>>? _listsSub;
   String? _currentUid;
   String? _fallbackName;
   DateTime? _lastReactionAt;
@@ -94,11 +106,15 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     _allUsersSub?.cancel();
     _adminUidsSub?.cancel();
     _moderatorUidsSub?.cancel();
+    _pollSub?.cancel();
+    _listsSub?.cancel();
     _profileSub = null;
     _reviewsSub = null;
     _allUsersSub = null;
     _adminUidsSub = null;
     _moderatorUidsSub = null;
+    _pollSub = null;
+    _listsSub = null;
     _lastReactionAt = null;
     _pendingReactionIds.clear();
     _currentUid = event.uid;
@@ -122,6 +138,37 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
       ),
     );
 
+    _startUserStreams(uid);
+  }
+
+  Future<void> _onRefreshed(
+    CommunityRefreshed event,
+    Emitter<CommunityState> emit,
+  ) async {
+    final uid = _currentUid;
+    if (uid == null) return;
+    _cancelUserStreams();
+    _startUserStreams(uid);
+  }
+
+  void _cancelUserStreams() {
+    _profileSub?.cancel();
+    _reviewsSub?.cancel();
+    _allUsersSub?.cancel();
+    _adminUidsSub?.cancel();
+    _moderatorUidsSub?.cancel();
+    _pollSub?.cancel();
+    _listsSub?.cancel();
+    _profileSub = null;
+    _reviewsSub = null;
+    _allUsersSub = null;
+    _adminUidsSub = null;
+    _moderatorUidsSub = null;
+    _pollSub = null;
+    _listsSub = null;
+  }
+
+  void _startUserStreams(String uid) {
     _profileSub = _repository.watchProfile(uid).listen((profile) {
       if (!isClosed) add(_CommunityProfileReceived(profile));
     });
@@ -141,6 +188,18 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     try {
       _moderatorUidsSub = _repository.watchModeratorUids().listen((uids) {
         if (!isClosed) add(_CommunityModeratorUidsReceived(uids));
+      }, onError: (_) {});
+    } catch (_) {}
+
+    try {
+      _pollSub = _repository.watchPinnedPoll().listen((poll) {
+        if (!isClosed) add(_CommunityPinnedPollReceived(poll));
+      }, onError: (_) {});
+    } catch (_) {}
+
+    try {
+      _listsSub = _repository.watchCuratedLists().listen((lists) {
+        if (!isClosed) add(_CommunityCuratedListsReceived(lists));
       }, onError: (_) {});
     } catch (_) {}
 
@@ -534,7 +593,8 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
       await _repository.submitReport(report);
       emit(
         state.copyWith(
-          feedbackMessage: 'Report submitted. Thank you for keeping CineList safe.',
+          feedbackMessage:
+              'Report submitted. Thank you for keeping CineList safe.',
           clearError: true,
         ),
       );
@@ -552,6 +612,189 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
       await _repository.deleteReview(event.reviewId);
       emit(
         state.copyWith(isSubmitting: false, feedbackMessage: 'Review deleted.'),
+      );
+    } on AppException catch (e) {
+      emit(state.copyWith(isSubmitting: false, errorMessage: e.message));
+    }
+  }
+
+  void _onPinnedPollReceived(
+    _CommunityPinnedPollReceived event,
+    Emitter<CommunityState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        pinnedPoll: event.poll,
+        clearPinnedPoll: event.poll == null,
+      ),
+    );
+  }
+
+  void _onCuratedListsReceived(
+    _CommunityCuratedListsReceived event,
+    Emitter<CommunityState> emit,
+  ) {
+    emit(state.copyWith(curatedLists: event.lists));
+  }
+
+  Future<void> _onPollVoted(
+    CommunityPollVoted event,
+    Emitter<CommunityState> emit,
+  ) async {
+    final uid = _currentUid;
+    final poll = state.pinnedPoll;
+    if (uid == null || poll == null || poll.id != event.pollId) return;
+    if (event.optionIndex < 0 || event.optionIndex >= poll.options.length) {
+      return;
+    }
+
+    final prevVotes = Map<String, int>.from(poll.votesByUid);
+    if (prevVotes[uid] == event.optionIndex) return;
+
+    final nextVotes = Map<String, int>.from(prevVotes)
+      ..[uid] = event.optionIndex;
+    emit(state.copyWith(pinnedPoll: poll.copyWith(votesByUid: nextVotes)));
+
+    try {
+      await _repository.voteOnPoll(
+        pollId: poll.id,
+        uid: uid,
+        optionIndex: event.optionIndex,
+      );
+    } on AppException catch (e) {
+      if (!isClosed) {
+        emit(
+          state.copyWith(
+            pinnedPoll: poll.copyWith(votesByUid: prevVotes),
+            errorMessage: e.message,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _onCuratedListPublished(
+    CommunityCuratedListPublished event,
+    Emitter<CommunityState> emit,
+  ) async {
+    final uid = _currentUid;
+    if (uid == null) {
+      emit(state.copyWith(errorMessage: 'Please sign in to share a list.'));
+      return;
+    }
+    if (event.movies.isEmpty) {
+      emit(state.copyWith(errorMessage: 'Add movies to this list first.'));
+      return;
+    }
+
+    final profile =
+        state.profile ??
+        UserProfileModel(uid: uid, displayName: _fallbackName ?? 'Movie Fan');
+
+    emit(state.copyWith(isSubmitting: true, clearError: true));
+    try {
+      final list = CuratedListModel(
+        id: event.collectionId != null
+            ? CuratedListModel.docIdFor(uid, event.collectionId!)
+            : '',
+        collectionId: event.collectionId,
+        title: event.title.trim(),
+        description: event.description.trim(),
+        authorUid: uid,
+        authorName: profile.displayName,
+        authorAvatarKey: profile.avatarKey,
+        movies: event.movies,
+        createdAt: DateTime.now(),
+      );
+      await _repository.publishCuratedList(list);
+      emit(
+        state.copyWith(
+          isSubmitting: false,
+          feedbackMessage: 'Published "${list.title}" to Community Lists.',
+        ),
+      );
+    } on AppException catch (e) {
+      emit(state.copyWith(isSubmitting: false, errorMessage: e.message));
+    }
+  }
+
+  Future<void> _onCuratedListMoviesSynced(
+    CommunityCuratedListMoviesSynced event,
+    Emitter<CommunityState> emit,
+  ) async {
+    final uid = _currentUid;
+    if (uid == null || event.movies.isEmpty) return;
+
+    final prevLists = state.curatedLists;
+    final updatedLists = [
+      for (final item in prevLists)
+        if (item.id == event.listId && item.authorUid == uid)
+          item.copyWith(movies: event.movies)
+        else
+          item,
+    ];
+    emit(state.copyWith(curatedLists: updatedLists));
+
+    try {
+      await _repository.syncCuratedListMovies(
+        listId: event.listId,
+        movies: event.movies,
+      );
+    } on AppException catch (e) {
+      if (!isClosed) {
+        emit(state.copyWith(curatedLists: prevLists, errorMessage: e.message));
+      }
+    }
+  }
+
+  Future<void> _onCuratedListLikeToggled(
+    CommunityCuratedListLikeToggled event,
+    Emitter<CommunityState> emit,
+  ) async {
+    final uid = _currentUid;
+    if (uid == null) return;
+
+    final list = event.list;
+    final wasLiked = list.isLikedBy(uid);
+    final nextLikes = List<String>.from(list.likedBy);
+    if (wasLiked) {
+      nextLikes.remove(uid);
+    } else {
+      nextLikes.add(uid);
+    }
+
+    final prevLists = state.curatedLists;
+    final updatedLists = [
+      for (final item in prevLists)
+        if (item.id == list.id) list.copyWith(likedBy: nextLikes) else item,
+    ];
+    emit(state.copyWith(curatedLists: updatedLists));
+
+    try {
+      await _repository.toggleCuratedListLike(
+        listId: list.id,
+        uid: uid,
+        currentlyLiked: wasLiked,
+      );
+    } on AppException catch (e) {
+      if (!isClosed) {
+        emit(state.copyWith(curatedLists: prevLists, errorMessage: e.message));
+      }
+    }
+  }
+
+  Future<void> _onCuratedListDeleted(
+    CommunityCuratedListDeleted event,
+    Emitter<CommunityState> emit,
+  ) async {
+    emit(state.copyWith(isSubmitting: true, clearError: true));
+    try {
+      await _repository.deleteCuratedList(event.listId);
+      emit(
+        state.copyWith(
+          isSubmitting: false,
+          feedbackMessage: 'Curated list removed.',
+        ),
       );
     } on AppException catch (e) {
       emit(state.copyWith(isSubmitting: false, errorMessage: e.message));
@@ -589,7 +832,8 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     _allUsersSub?.cancel();
     _adminUidsSub?.cancel();
     _moderatorUidsSub?.cancel();
+    _pollSub?.cancel();
+    _listsSub?.cancel();
     return super.close();
   }
 }
-

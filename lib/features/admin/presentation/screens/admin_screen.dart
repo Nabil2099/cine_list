@@ -7,6 +7,7 @@ import '../../../../core/di/injection_container.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/empty_state_view.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
+import '../../../community/data/models/community_poll_model.dart';
 import '../../../community/data/models/movie_review_model.dart';
 import '../../../community/data/models/review_report_model.dart';
 import '../../../community/data/models/user_profile_model.dart';
@@ -22,9 +23,7 @@ class AdminScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin = context.select<CommunityBloc, bool>(
-      (b) => b.state.isAdmin,
-    );
+    final isAdmin = context.select<CommunityBloc, bool>((b) => b.state.isAdmin);
     final isModerator = context.select<CommunityBloc, bool>(
       (b) => b.state.isModerator,
     );
@@ -37,8 +36,7 @@ class AdminScreen extends StatelessWidget {
         body: EmptyStateView(
           icon: Icons.lock_outline_rounded,
           title: 'Staff Access Required',
-          message:
-              'This panel is restricted to the CineList Admin and Moderators.',
+          message: 'This panel is restricted to the CineList Creator and Moderators.',
           actionLabel: 'Go Back',
           onAction: () =>
               context.canPop() ? context.pop() : context.go('/discover'),
@@ -94,10 +92,7 @@ class _StaffPanelViewState extends State<_StaffPanelView> {
     }
   }
 
-  Future<void> _confirmBanAndDeleteUser(
-    String uid,
-    String displayName,
-  ) async {
+  Future<void> _confirmBanAndDeleteUser(String uid, String displayName) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dCtx) => AlertDialog(
@@ -163,7 +158,7 @@ class _StaffPanelViewState extends State<_StaffPanelView> {
 
   @override
   Widget build(BuildContext context) {
-    final tabCount = widget.isAdmin ? 3 : 2;
+    final tabCount = widget.isAdmin ? 4 : 3;
     final currentUid = context.select<AuthCubit, String?>(
       (c) => c.state.user?.uid,
     );
@@ -180,16 +175,19 @@ class _StaffPanelViewState extends State<_StaffPanelView> {
                 context.canPop() ? context.pop() : context.go('/community'),
           ),
           title: Text(
-            widget.isAdmin ? 'Admin Moderation Panel' : 'Moderation Panel',
+            widget.isAdmin ? 'Creator Moderation Panel' : 'Moderation Panel',
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
           bottom: TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             indicatorColor: AppColors.pacificBlue,
             labelColor: AppColors.pacificBlue,
             unselectedLabelColor: AppColors.textSecondary,
             tabs: [
               const Tab(text: 'Reports'),
               const Tab(text: 'Reviews'),
+              const Tab(text: 'Polls'),
               if (widget.isAdmin) const Tab(text: 'Users & Mods'),
             ],
           ),
@@ -211,6 +209,7 @@ class _StaffPanelViewState extends State<_StaffPanelView> {
                   repo: _repo,
                   onDeleteReview: _confirmDeleteReview,
                 ),
+                _PollsTab(repo: _repo, currentUid: currentUid ?? ''),
                 if (widget.isAdmin)
                   _UsersTab(
                     repo: _repo,
@@ -483,11 +482,7 @@ class _UsersTab extends StatelessWidget {
   final CommunityRepository repo;
   final String? currentAdminUid;
   final Future<void> Function(String uid, String displayName) onBanUser;
-  final Future<void> Function(
-    String uid,
-    String displayName,
-    bool currentlyMod,
-  )
+  final Future<void> Function(String uid, String displayName, bool currentlyMod)
   onToggleModerator;
 
   @override
@@ -557,9 +552,9 @@ class _UsersTab extends StatelessWidget {
                                 ),
                                 if (isSelfAdmin)
                                   const Text(
-                                    'Admin',
+                                    'Creator',
                                     style: TextStyle(
-                                      color: AppColors.khakiBeige,
+                                      color: AppColors.creatorEmerald,
                                       fontSize: 11,
                                       fontWeight: FontWeight.w800,
                                     ),
@@ -621,6 +616,247 @@ class _UsersTab extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _PollsTab extends StatefulWidget {
+  const _PollsTab({required this.repo, required this.currentUid});
+
+  final CommunityRepository repo;
+  final String currentUid;
+
+  @override
+  State<_PollsTab> createState() => _PollsTabState();
+}
+
+class _PollsTabState extends State<_PollsTab> {
+  final _formKey = GlobalKey<FormState>();
+  final _questionController = TextEditingController();
+  final List<TextEditingController> _optionControllers = [
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+  ];
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _questionController.dispose();
+    for (final c in _optionControllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _createPoll() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    final options = _optionControllers
+        .map((c) => c.text.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+    if (options.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter at least 2 poll options.')),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      await widget.repo.createPoll(
+        question: _questionController.text.trim(),
+        options: options,
+        createdByUid: widget.currentUid,
+      );
+      _questionController.clear();
+      for (final c in _optionControllers) {
+        c.clear();
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Poll pinned to Community!')),
+        );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _deletePoll(String pollId) async {
+    try {
+      await widget.repo.deletePoll(pollId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('Poll deleted.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        StreamBuilder<CommunityPollModel?>(
+          stream: widget.repo.watchPinnedPoll(),
+          builder: (context, snapshot) {
+            final poll = snapshot.data;
+            if (poll == null) {
+              return Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.surfaceBorder),
+                ),
+                child: const Text(
+                  'No active pinned poll right now. Create one below!',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              );
+            }
+            return Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceCard,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppColors.pacificBlue.withValues(alpha: 0.45),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.poll_rounded,
+                        color: AppColors.pacificBlue,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'Active Pinned Poll',
+                        style: TextStyle(
+                          color: AppColors.pacificBlue,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        tooltip: 'Delete Poll',
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          color: AppColors.error,
+                          size: 20,
+                        ),
+                        onPressed: () => _deletePoll(poll.id),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    poll.question,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  for (var i = 0; i < poll.options.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        '• ${poll.options[i]} (${poll.votesForOption(i)} votes)',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 18),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceCard,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.surfaceBorder),
+          ),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Create Weekly Community Poll',
+                  style: TextStyle(
+                    color: AppColors.khakiBeige,
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _questionController,
+                  maxLength: 140,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: const InputDecoration(
+                    labelText: 'Poll Question',
+                    hintText: 'e.g. Best Christopher Nolan ending?',
+                  ),
+                  validator: (val) => (val == null || val.trim().isEmpty)
+                      ? 'Enter a poll question.'
+                      : null,
+                ),
+                const SizedBox(height: 10),
+                for (var i = 0; i < _optionControllers.length; i++) ...[
+                  TextFormField(
+                    controller: _optionControllers[i],
+                    maxLength: 60,
+                    style: const TextStyle(color: AppColors.textPrimary),
+                    decoration: InputDecoration(
+                      labelText: i < 2
+                          ? 'Option ${i + 1}'
+                          : 'Option ${i + 1} (Optional)',
+                      counterText: '',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _isSubmitting ? null : _createPoll,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.pacificBlue,
+                      foregroundColor: AppColors.black,
+                    ),
+                    icon: const Icon(Icons.push_pin_rounded, size: 18),
+                    label: Text(
+                      _isSubmitting ? 'Publishing...' : 'Pin Poll to Community',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

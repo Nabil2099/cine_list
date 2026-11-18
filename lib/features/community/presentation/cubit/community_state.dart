@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../data/models/community_poll_model.dart';
+import '../../data/models/curated_list_model.dart';
 import '../../data/models/movie_review_model.dart';
 import '../../data/models/user_profile_model.dart';
 
@@ -23,6 +25,8 @@ class CommunityState extends Equatable {
     this.userProfilesByUid = const {},
     this.adminUids = const {},
     this.moderatorUids = const {},
+    this.pinnedPoll,
+    this.curatedLists = const [],
     this.sortOption = CommunitySortOption.latest,
     this.followingOnly = false,
     this.searchQuery = '',
@@ -40,6 +44,8 @@ class CommunityState extends Equatable {
   final Map<String, UserProfileModel> userProfilesByUid;
   final Set<String> adminUids;
   final Set<String> moderatorUids;
+  final CommunityPollModel? pinnedPoll;
+  final List<CuratedListModel> curatedLists;
   final CommunitySortOption sortOption;
   final bool followingOnly;
   final String searchQuery;
@@ -117,6 +123,9 @@ class CommunityState extends Equatable {
     Map<String, UserProfileModel>? userProfilesByUid,
     Set<String>? adminUids,
     Set<String>? moderatorUids,
+    CommunityPollModel? pinnedPoll,
+    bool clearPinnedPoll = false,
+    List<CuratedListModel>? curatedLists,
     CommunitySortOption? sortOption,
     bool? followingOnly,
     String? searchQuery,
@@ -136,6 +145,8 @@ class CommunityState extends Equatable {
       userProfilesByUid: userProfilesByUid ?? this.userProfilesByUid,
       adminUids: adminUids ?? this.adminUids,
       moderatorUids: moderatorUids ?? this.moderatorUids,
+      pinnedPoll: clearPinnedPoll ? null : (pinnedPoll ?? this.pinnedPoll),
+      curatedLists: curatedLists ?? this.curatedLists,
       sortOption: sortOption ?? this.sortOption,
       followingOnly: followingOnly ?? this.followingOnly,
       searchQuery: searchQuery ?? this.searchQuery,
@@ -158,6 +169,8 @@ class CommunityState extends Equatable {
     userProfilesByUid,
     adminUids,
     moderatorUids,
+    pinnedPoll,
+    curatedLists,
     sortOption,
     followingOnly,
     searchQuery,

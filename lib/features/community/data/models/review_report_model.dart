@@ -104,4 +104,3 @@ class ReviewReportModel extends Equatable {
     status,
   ];
 }
-

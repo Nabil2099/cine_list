@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../community/data/models/movie_review_model.dart';
 import '../../../watchlist/data/models/watchlist_movie_model.dart';
 import '../models/chat_message_model.dart';
 
@@ -77,6 +78,60 @@ class AiChatRepository {
       ];
     }
 
+    return _generateText(body: body, key: key);
+  }
+
+  /// Generates a concise, spoiler-free AI consensus from community reviews.
+  Future<String> summarizeCommunityReviews({
+    required String movieTitle,
+    required List<MovieReviewModel> reviews,
+  }) async {
+    final key = (apiKey ?? ApiConstants.geminiApiKey).trim();
+    if (key.isEmpty) {
+      throw const NetworkException(
+        'Gemini API key is not configured. Add GEMINI_API_KEY to your .env file.',
+        code: 'missing_gemini_key',
+        isAuthConfigError: true,
+      );
+    }
+
+    final reviewLines = reviews
+        .take(15)
+        .map((r) => '- (${r.rating}/5) "${r.comment.replaceAll('\n', ' ')}"')
+        .join('\n');
+
+    final body = <String, dynamic>{
+      'systemInstruction': {
+        'parts': [
+          {
+            'text':
+                'You summarize movie community reviews for CineList. '
+                'Write 2-3 concise sentences describing what reviewers liked '
+                'and any common criticisms. NEVER include plot spoilers.',
+          },
+        ],
+      },
+      'contents': [
+        {
+          'role': 'user',
+          'parts': [
+            {
+              'text':
+                  'Summarize CineList community reviews for "$movieTitle":\n$reviewLines',
+            },
+          ],
+        },
+      ],
+      'generationConfig': {'temperature': 0.4, 'maxOutputTokens': 220},
+    };
+
+    return _generateText(body: body, key: key);
+  }
+
+  Future<String> _generateText({
+    required Map<String, dynamic> body,
+    required String key,
+  }) async {
     try {
       final response = await _dio.post<dynamic>(
         '/models/${ApiConstants.geminiModel}:generateContent',

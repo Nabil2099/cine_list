@@ -47,19 +47,20 @@ class WatchlistState extends Equatable {
   List<WatchlistMovieModel> get watchedMovies =>
       movies.where((m) => m.status == WatchlistFilterStatus.watched).toList();
 
+  WatchlistCollectionModel? get selectedCollection {
+    if (selectedCollectionId == null) return null;
+    return collections.where((c) => c.id == selectedCollectionId).firstOrNull;
+  }
+
   List<WatchlistMovieModel> get activeTabMovies {
     final base = selectedTab == WatchlistFilterStatus.wantToWatch
         ? wantToWatchMovies
         : watchedMovies;
 
-    final selectedCollection = selectedCollectionId == null
-        ? null
-        : collections.where((c) => c.id == selectedCollectionId).firstOrNull;
-    final collectionFiltered = selectedCollection == null
+    final selected = selectedCollection;
+    final collectionFiltered = selected == null
         ? base
-        : base
-              .where((m) => selectedCollection.containsMovie(m.movieId))
-              .toList();
+        : base.where((m) => selected.containsMovie(m.movieId)).toList();
 
     final query = searchQuery.trim().toLowerCase();
     final filtered = query.isEmpty

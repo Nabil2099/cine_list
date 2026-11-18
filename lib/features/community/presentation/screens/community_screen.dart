@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/di/injection_container.dart';
 import '../../../../core/routing/movie_details_route.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/empty_state_view.dart';
@@ -16,9 +17,12 @@ import '../../data/models/community_poll_model.dart';
 import '../../data/models/curated_list_model.dart';
 import '../../data/models/movie_review_model.dart';
 import '../../data/models/user_profile_model.dart';
+import '../../data/models/weekly_challenge_model.dart';
+import '../../data/repositories/community_repository.dart';
 import '../bloc/community_bloc.dart';
 import '../widgets/community_review_card.dart';
 import '../widgets/report_review_dialog.dart';
+import '../widgets/review_replies_sheet.dart';
 import '../widgets/user_avatar_widget.dart';
 import '../widgets/user_profile_dialog.dart';
 
@@ -119,6 +123,27 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                   setState(() => _subview = subview),
                             ),
                             if (_subview == _CommunitySubview.reviews) ...[
+                              if (state.activeChallenge != null) ...[
+                                const SizedBox(height: 14),
+                                _WeeklyChallengeBanner(
+                                  challenge: state.activeChallenge!,
+                                  isCompleted: state.activeChallenge!
+                                      .isCompletedBy(currentUid),
+                                  onOpenMovie: () {
+                                    final c = state.activeChallenge!;
+                                    MovieDetailsRoute.push(
+                                      context,
+                                      movieId: c.movieId,
+                                      initialMovie: c.toMovieSummary(),
+                                    );
+                                  },
+                                  onComplete: () => bloc.add(
+                                    CommunityChallengeCompleted(
+                                      state.activeChallenge!.id,
+                                    ),
+                                  ),
+                                ),
+                              ],
                               if (state.pinnedPoll != null) ...[
                                 const SizedBox(height: 14),
                                 _PinnedPollCard(
@@ -283,6 +308,29 @@ class _CommunityScreenState extends State<CommunityScreen> {
                               );
                           }
                         },
+                        onCloneList: (list) async {
+                          final res = await context
+                              .read<WatchlistCubit>()
+                              .cloneCuratedList(
+                                title: list.title,
+                                movies: list.movies
+                                    .map((m) => m.toMovieSummary())
+                                    .toList(),
+                              );
+                          if (res != null && context.mounted) {
+                            ScaffoldMessenger.of(context)
+                              ..hideCurrentSnackBar()
+                              ..showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    res.addedCount > 0
+                                        ? 'Cloned "${res.collectionName}" (${res.addedCount} new movies added)!'
+                                        : 'Cloned "${res.collectionName}" to your Watchlist collections!',
+                                  ),
+                                ),
+                              );
+                          }
+                        },
                         onOpenMovie: (movie) {
                           MovieDetailsRoute.push(
                             context,
@@ -397,6 +445,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                   review: review,
                                   isLike: false,
                                 ),
+                              ),
+                              onReply: () => ReviewRepliesSheet.show(
+                                context,
+                                review: review,
+                                repository: sl<CommunityRepository>(),
                               ),
                               onReport: () async {
                                 final res = await ReportReviewDialog.show(
@@ -747,6 +800,7 @@ class _CuratedListsSliver extends StatelessWidget {
     required this.onToggleLike,
     required this.onDelete,
     required this.onSaveAll,
+    required this.onCloneList,
     required this.onOpenMovie,
   });
 
@@ -756,6 +810,7 @@ class _CuratedListsSliver extends StatelessWidget {
   final ValueChanged<CuratedListModel> onToggleLike;
   final ValueChanged<String> onDelete;
   final Future<void> Function(List<CuratedListMovie> movies) onSaveAll;
+  final Future<void> Function(CuratedListModel list) onCloneList;
   final ValueChanged<CuratedListMovie> onOpenMovie;
 
   @override
@@ -930,6 +985,35 @@ class _CuratedListsSliver extends StatelessWidget {
                       ),
                     ),
                     const Spacer(),
+                    OutlinedButton.icon(
+                      onPressed: () => onCloneList(list),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.softPeriwinkle,
+                        side: BorderSide(
+                          color: AppColors.softPeriwinkle.withValues(
+                            alpha: 0.45,
+                          ),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      icon: const Icon(
+                        Icons.copy_all_rounded,
+                        size: 14,
+                      ),
+                      label: const Text(
+                        'Clone List',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     FilledButton.icon(
                       onPressed: unsavedCount > 0
                           ? () => onSaveAll(list.movies)
@@ -1348,6 +1432,186 @@ class _LeaderboardRow extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _WeeklyChallengeBanner extends StatelessWidget {
+  const _WeeklyChallengeBanner({
+    required this.challenge,
+    required this.isCompleted,
+    required this.onOpenMovie,
+    required this.onComplete,
+  });
+
+  final WeeklyChallengeModel challenge;
+  final bool isCompleted;
+  final VoidCallback onOpenMovie;
+  final VoidCallback onComplete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.surfaceCard,
+            AppColors.khakiBeige.withValues(alpha: 0.14),
+          ],
+        ),
+        border: Border.all(
+          color: AppColors.khakiBeige.withValues(alpha: 0.45),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: onOpenMovie,
+            borderRadius: BorderRadius.circular(10),
+            child: MoviePoster(
+              posterPath: challenge.posterPath,
+              width: 58,
+              height: 86,
+              borderRadius: 10,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.local_fire_department_rounded,
+                      color: AppColors.khakiBeige,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        challenge.title.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.khakiBeige,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.7,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.pacificBlue.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '+${challenge.bonusPoints} Rep',
+                        style: const TextStyle(
+                          color: AppColors.pacificBlue,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                InkWell(
+                  onTap: onOpenMovie,
+                  child: Text(
+                    challenge.movieTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (challenge.prompt.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    challenge.prompt,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Text(
+                      '${challenge.participantUids.length} joined',
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: onOpenMovie,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Reviews',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    FilledButton.icon(
+                      onPressed: isCompleted ? null : onComplete,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.khakiBeige,
+                        foregroundColor: AppColors.black,
+                        disabledBackgroundColor: AppColors.pacificBlue
+                            .withValues(alpha: 0.18),
+                        disabledForegroundColor: AppColors.pacificBlue,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      icon: Icon(
+                        isCompleted
+                            ? Icons.check_circle_rounded
+                            : Icons.play_circle_outline_rounded,
+                        size: 14,
+                      ),
+                      label: Text(
+                        isCompleted ? 'Completed' : 'Watched It',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

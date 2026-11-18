@@ -150,5 +150,111 @@ void main() {
         expect(cubit.state.feedbackMessage, 'Created collection "Date Night".');
       },
     );
+
+    test('WatchlistState prioritizes Up Next and counts rewatches in minutes', () {
+      final upNextMovie = WatchlistMovieModel(
+        movieId: 1,
+        title: 'Up Next Film',
+        status: WatchlistFilterStatus.wantToWatch,
+        addedAt: DateTime(2025, 1, 1),
+        isUpNext: true,
+      );
+      final regularMovie = WatchlistMovieModel(
+        movieId: 2,
+        title: 'Regular Film',
+        status: WatchlistFilterStatus.wantToWatch,
+        addedAt: DateTime(2025, 2, 1),
+      );
+      final watchedRewatched = WatchlistMovieModel(
+        movieId: 3,
+        title: 'Rewatched Film',
+        status: WatchlistFilterStatus.watched,
+        addedAt: DateTime(2025, 1, 1),
+        runtimeMinutes: 100,
+        rewatchCount: 2,
+      );
+
+      final state = WatchlistState(
+        status: WatchlistLoadStatus.loaded,
+        movies: [regularMovie, upNextMovie, watchedRewatched],
+      );
+
+      expect(state.upNextCount, 1);
+      expect(state.activeTabMovies.map((m) => m.movieId).toList(), [1, 2]);
+      expect(state.totalMinutesWatched, 300);
+    });
+
+    blocTest<WatchlistCubit, WatchlistState>(
+      'toggleUpNext blocks pinning beyond max 5 movies',
+      build: () {
+        final fiveUpNext = List.generate(
+          5,
+          (i) => WatchlistMovieModel(
+            movieId: i + 1,
+            title: 'Movie ${i + 1}',
+            status: WatchlistFilterStatus.wantToWatch,
+            addedAt: DateTime(2025, 1, i + 1),
+            isUpNext: true,
+          ),
+        );
+        when(() => repository.watchWatchlist('uid-123')).thenAnswer(
+          (_) => Stream.value([...fiveUpNext, savedItem]),
+        );
+        return WatchlistCubit(repository);
+      },
+      act: (cubit) async {
+        cubit.bindUser('uid-123');
+        await Future<void>.delayed(Duration.zero);
+        await cubit.toggleUpNext(savedItem);
+      },
+      verify: (cubit) {
+        verifyNever(
+          () => repository.toggleUpNext(
+            uid: any(named: 'uid'),
+            movieId: any(named: 'movieId'),
+            isUpNext: any(named: 'isUpNext'),
+          ),
+        );
+        expect(
+          cubit.state.feedbackMessage,
+          'Up Next queue is full (max 5 movies).',
+        );
+      },
+    );
+
+    blocTest<WatchlistCubit, WatchlistState>(
+      'cloneCuratedList creates collection and saves only unsaved movies',
+      build: () {
+        when(() => repository.watchWatchlist('uid-123'))
+            .thenAnswer((_) => Stream.value([savedItem]));
+        when(
+          () => repository.cloneCollectionWithMovies(
+            uid: 'uid-123',
+            name: 'Sci-Fi Picks',
+            moviesToSave: any(named: 'moviesToSave'),
+            allMovieIds: [157336, 438631],
+          ),
+        ).thenAnswer((_) async => 'col-cloned');
+        return WatchlistCubit(repository);
+      },
+      act: (cubit) async {
+        cubit.bindUser('uid-123');
+        await Future<void>.delayed(Duration.zero);
+        await cubit.cloneCuratedList(
+          title: 'Sci-Fi Picks',
+          movies: const [
+            MovieSummary(id: 157336, title: 'Interstellar'),
+            MovieSummary(id: 438631, title: 'Dune'),
+          ],
+        );
+      },
+      verify: (cubit) {
+        expect(cubit.state.selectedCollectionId, 'col-cloned');
+        expect(
+          cubit.state.feedbackMessage,
+          'Cloned "Sci-Fi Picks" (1 new movies added).',
+        );
+      },
+    );
   });
 }

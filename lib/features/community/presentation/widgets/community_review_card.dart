@@ -24,6 +24,7 @@ class CommunityReviewCard extends StatelessWidget {
     this.onAuthorTap,
     this.onToggleLike,
     this.onToggleDislike,
+    this.onReply,
     this.onReport,
     this.onShare,
     this.onDelete,
@@ -44,6 +45,7 @@ class CommunityReviewCard extends StatelessWidget {
   final VoidCallback? onAuthorTap;
   final VoidCallback? onToggleLike;
   final VoidCallback? onToggleDislike;
+  final VoidCallback? onReply;
   final VoidCallback? onReport;
   final VoidCallback? onShare;
   final VoidCallback? onDelete;
@@ -437,6 +439,45 @@ class CommunityReviewCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onReply != null) ...[
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: onReply,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceElevated,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.surfaceBorder),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          size: 13.5,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          review.replyCount > 0
+                              ? 'Replies (${review.replyCount})'
+                              : 'Reply',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const Spacer(),
               if (!isOwner && onReport != null)
                 IconButton(

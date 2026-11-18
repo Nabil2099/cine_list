@@ -13,6 +13,8 @@ import 'watchlist_state.dart';
 class WatchlistCubit extends Cubit<WatchlistState> {
   WatchlistCubit(this._repository) : super(const WatchlistState());
 
+  static const int maxUpNextMovies = 5;
+
   final WatchlistRepository _repository;
   StreamSubscription<List<WatchlistMovieModel>>? _subscription;
   StreamSubscription<List<WatchlistCollectionModel>>? _collectionsSubscription;
@@ -235,6 +237,121 @@ class WatchlistCubit extends Cubit<WatchlistState> {
       emit(state.copyWith(errorMessage: e.message));
     } finally {
       _setMutating(movieId, false);
+    }
+  }
+
+  Future<void> toggleUpNext(WatchlistMovieModel movie) async {
+    final uid = _currentUid;
+    if (uid == null) return;
+
+    final nextUpNext = !movie.isUpNext;
+    if (nextUpNext && state.upNextCount >= maxUpNextMovies) {
+      emit(
+        state.copyWith(
+          feedbackMessage: 'Up Next queue is full (max $maxUpNextMovies movies).',
+          clearError: true,
+        ),
+      );
+      return;
+    }
+
+    _setMutating(movie.movieId, true);
+    try {
+      await _repository.toggleUpNext(
+        uid: uid,
+        movieId: movie.movieId,
+        isUpNext: nextUpNext,
+      );
+      emit(
+        state.copyWith(
+          feedbackMessage: nextUpNext
+              ? 'Pinned "${movie.title}" to Up Next.'
+              : 'Removed "${movie.title}" from Up Next.',
+          clearError: true,
+        ),
+      );
+    } on AppException catch (e) {
+      emit(state.copyWith(errorMessage: e.message));
+    } finally {
+      _setMutating(movie.movieId, false);
+    }
+  }
+
+  Future<void> logRewatch(WatchlistMovieModel movie) async {
+    final uid = _currentUid;
+    if (uid == null) return;
+
+    final nextCount = movie.rewatchCount + 1;
+    _setMutating(movie.movieId, true);
+    try {
+      await _repository.incrementRewatch(
+        uid: uid,
+        movieId: movie.movieId,
+        nextCount: nextCount,
+      );
+      emit(
+        state.copyWith(
+          feedbackMessage: 'Logged rewatch #$nextCount for "${movie.title}".',
+          clearError: true,
+        ),
+      );
+    } on AppException catch (e) {
+      emit(state.copyWith(errorMessage: e.message));
+    } finally {
+      _setMutating(movie.movieId, false);
+    }
+  }
+
+  Future<({String collectionName, int addedCount})?> cloneCuratedList({
+    required String title,
+    required List<MovieSummary> movies,
+  }) async {
+    final uid = _currentUid;
+    if (uid == null) {
+      emit(state.copyWith(errorMessage: 'Please sign in to clone lists.'));
+      return null;
+    }
+    final existingNames = state.collections
+        .map((c) => c.name.trim().toLowerCase())
+        .toSet();
+    final baseName = title.trim().isEmpty ? 'Imported List' : title.trim();
+    var targetName = baseName.length > 40 ? baseName.substring(0, 40) : baseName;
+    if (existingNames.contains(targetName.toLowerCase())) {
+      const suffix = ' (Copy)';
+      final maxBase = 40 - suffix.length;
+      final prefix = baseName.length > maxBase
+          ? baseName.substring(0, maxBase)
+          : baseName;
+      targetName = '$prefix$suffix';
+    }
+
+    final savedIds = state.movies.map((m) => m.movieId).toSet();
+    final toSave = movies
+        .where((m) => !savedIds.contains(m.id))
+        .map((m) => WatchlistMovieModel.fromMovieSummary(m))
+        .toList();
+    final allIds = movies.map((m) => m.id).toSet().toList();
+
+    try {
+      final id = await _repository.cloneCollectionWithMovies(
+        uid: uid,
+        name: targetName,
+        moviesToSave: toSave,
+        allMovieIds: allIds,
+      );
+      emit(
+        state.copyWith(
+          selectedCollectionId: id,
+          feedbackMessage: toSave.isNotEmpty
+              ? 'Cloned "$targetName" (${toSave.length} new movies added).'
+              : 'Cloned "$targetName" to your collections.',
+          clearError: true,
+        ),
+      );
+      return (collectionName: targetName, addedCount: toSave.length);
+    } on AppException catch (e) {
+      emit(state.copyWith(errorMessage: e.message));
+      return null;
     }
   }
 

@@ -11,6 +11,7 @@ import '../../../community/data/models/community_poll_model.dart';
 import '../../../community/data/models/movie_review_model.dart';
 import '../../../community/data/models/review_report_model.dart';
 import '../../../community/data/models/user_profile_model.dart';
+import '../../../community/data/models/weekly_challenge_model.dart';
 import '../../../community/data/repositories/community_repository.dart';
 import '../../../community/presentation/bloc/community_bloc.dart';
 import '../../../community/presentation/widgets/user_avatar_widget.dart';
@@ -638,6 +639,9 @@ class _PollsTabState extends State<_PollsTab> {
     TextEditingController(),
     TextEditingController(),
   ];
+  final _challengeMovieIdController = TextEditingController();
+  final _challengeTitleController = TextEditingController();
+  final _challengePromptController = TextEditingController();
   bool _isSubmitting = false;
 
   @override
@@ -646,7 +650,47 @@ class _PollsTabState extends State<_PollsTab> {
     for (final c in _optionControllers) {
       c.dispose();
     }
+    _challengeMovieIdController.dispose();
+    _challengeTitleController.dispose();
+    _challengePromptController.dispose();
     super.dispose();
+  }
+
+  Future<void> _createChallenge() async {
+    final movieId = int.tryParse(_challengeMovieIdController.text.trim());
+    final movieTitle = _challengeTitleController.text.trim();
+    if (movieId == null || movieId <= 0 || movieTitle.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a valid TMDB Movie ID and Movie Title.'),
+        ),
+      );
+      return;
+    }
+    setState(() => _isSubmitting = true);
+    try {
+      await widget.repo.createWeeklyChallenge(
+        title: 'Movie of the Week',
+        movieId: movieId,
+        movieTitle: movieTitle,
+        prompt: _challengePromptController.text.trim(),
+        createdByUid: widget.currentUid,
+      );
+      if (!mounted) return;
+      _challengeMovieIdController.clear();
+      _challengeTitleController.clear();
+      _challengePromptController.clear();
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Movie of the Week published!')),
+        );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   Future<void> _createPoll() async {
@@ -854,6 +898,116 @@ class _PollsTabState extends State<_PollsTab> {
                 ),
               ],
             ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        StreamBuilder<WeeklyChallengeModel?>(
+          stream: widget.repo.watchActiveChallenge(),
+          builder: (context, snapshot) {
+            final challenge = snapshot.data;
+            if (challenge == null) return const SizedBox.shrink();
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceCard,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppColors.khakiBeige.withValues(alpha: 0.45),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.local_fire_department_rounded,
+                    color: AppColors.khakiBeige,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Active Watch Party: ${challenge.movieTitle} (${challenge.participantUids.length} joined)',
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () =>
+                        widget.repo.deleteWeeklyChallenge(challenge.id),
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      color: AppColors.error,
+                    ),
+                    tooltip: 'End Watch Party',
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceCard,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.surfaceBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Set Movie of the Week (Watch Party)',
+                style: TextStyle(
+                  color: AppColors.khakiBeige,
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _challengeMovieIdController,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: const InputDecoration(
+                  labelText: 'TMDB Movie ID',
+                  hintText: 'e.g. 157336',
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _challengeTitleController,
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: const InputDecoration(
+                  labelText: 'Movie Title',
+                  hintText: 'e.g. Interstellar',
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _challengePromptController,
+                maxLength: 140,
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: const InputDecoration(
+                  labelText: 'Watch Party Prompt (Optional)',
+                  hintText: 'e.g. Watch & share your favorite scene!',
+                  counterText: '',
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _isSubmitting ? null : _createChallenge,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.khakiBeige,
+                    foregroundColor: AppColors.black,
+                  ),
+                  icon: const Icon(Icons.local_fire_department_rounded, size: 18),
+                  label: const Text('Publish Movie of the Week'),
+                ),
+              ),
+            ],
           ),
         ),
       ],

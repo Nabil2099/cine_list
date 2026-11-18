@@ -12,6 +12,7 @@ import '../../data/models/curated_list_model.dart';
 import '../../data/models/movie_review_model.dart';
 import '../../data/models/review_report_model.dart';
 import '../../data/models/user_profile_model.dart';
+import '../../data/models/weekly_challenge_model.dart';
 import '../../data/repositories/community_repository.dart';
 import '../cubit/community_state.dart';
 
@@ -50,6 +51,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     on<CommunityCuratedListMoviesSynced>(_onCuratedListMoviesSynced);
     on<CommunityCuratedListLikeToggled>(_onCuratedListLikeToggled);
     on<CommunityCuratedListDeleted>(_onCuratedListDeleted);
+    on<CommunityChallengeCompleted>(_onChallengeCompleted);
 
     on<_CommunityProfileReceived>(_onProfileReceived);
     on<_CommunityAllUsersReceived>(_onAllUsersReceived);
@@ -59,6 +61,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     on<_CommunityReviewsReceived>(_onReviewsReceived);
     on<_CommunityReviewsLoadFailed>(_onReviewsLoadFailed);
     on<_CommunityPinnedPollReceived>(_onPinnedPollReceived);
+    on<_CommunityActiveChallengeReceived>(_onActiveChallengeReceived);
     on<_CommunityCuratedListsReceived>(_onCuratedListsReceived);
   }
 
@@ -72,6 +75,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
   StreamSubscription<Set<String>>? _adminUidsSub;
   StreamSubscription<Set<String>>? _moderatorUidsSub;
   StreamSubscription<CommunityPollModel?>? _pollSub;
+  StreamSubscription<WeeklyChallengeModel?>? _challengeSub;
   StreamSubscription<List<CuratedListModel>>? _listsSub;
   String? _currentUid;
   String? _fallbackName;
@@ -107,6 +111,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     _adminUidsSub?.cancel();
     _moderatorUidsSub?.cancel();
     _pollSub?.cancel();
+    _challengeSub?.cancel();
     _listsSub?.cancel();
     _profileSub = null;
     _reviewsSub = null;
@@ -114,6 +119,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     _adminUidsSub = null;
     _moderatorUidsSub = null;
     _pollSub = null;
+    _challengeSub = null;
     _listsSub = null;
     _lastReactionAt = null;
     _pendingReactionIds.clear();
@@ -158,6 +164,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     _adminUidsSub?.cancel();
     _moderatorUidsSub?.cancel();
     _pollSub?.cancel();
+    _challengeSub?.cancel();
     _listsSub?.cancel();
     _profileSub = null;
     _reviewsSub = null;
@@ -165,6 +172,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     _adminUidsSub = null;
     _moderatorUidsSub = null;
     _pollSub = null;
+    _challengeSub = null;
     _listsSub = null;
   }
 
@@ -194,6 +202,12 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     try {
       _pollSub = _repository.watchPinnedPoll().listen((poll) {
         if (!isClosed) add(_CommunityPinnedPollReceived(poll));
+      }, onError: (_) {});
+    } catch (_) {}
+
+    try {
+      _challengeSub = _repository.watchActiveChallenge().listen((challenge) {
+        if (!isClosed) add(_CommunityActiveChallengeReceived(challenge));
       }, onError: (_) {});
     } catch (_) {}
 
@@ -801,6 +815,47 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     }
   }
 
+  void _onActiveChallengeReceived(
+    _CommunityActiveChallengeReceived event,
+    Emitter<CommunityState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        activeChallenge: event.challenge,
+        clearActiveChallenge: event.challenge == null,
+      ),
+    );
+  }
+
+  Future<void> _onChallengeCompleted(
+    CommunityChallengeCompleted event,
+    Emitter<CommunityState> emit,
+  ) async {
+    final uid = _currentUid;
+    if (uid == null) return;
+    final challenge = state.activeChallenge;
+    if (challenge == null || challenge.id != event.challengeId) return;
+    if (challenge.isCompletedBy(uid)) return;
+
+    try {
+      final completed = await _repository.completeWeeklyChallenge(
+        challengeId: event.challengeId,
+        uid: uid,
+      );
+      if (completed) {
+        emit(
+          state.copyWith(
+            feedbackMessage:
+                'Watch Party completed! +${challenge.bonusPoints} bonus rep earned.',
+            clearError: true,
+          ),
+        );
+      }
+    } on AppException catch (e) {
+      emit(state.copyWith(errorMessage: e.message));
+    }
+  }
+
   Future<UserProfileModel?> fetchUserProfile(String uid) async {
     try {
       return await _repository.getProfile(uid);
@@ -833,6 +888,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     _adminUidsSub?.cancel();
     _moderatorUidsSub?.cancel();
     _pollSub?.cancel();
+    _challengeSub?.cancel();
     _listsSub?.cancel();
     return super.close();
   }

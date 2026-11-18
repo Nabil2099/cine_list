@@ -121,16 +121,84 @@ class WatchlistRepository {
     required WatchlistFilterStatus status,
   }) async {
     try {
-      await _watchlistRef(uid).doc(movieId.toString()).update({
+      final updateData = <String, dynamic>{
         'status': status.value,
         'watchedAt': status == WatchlistFilterStatus.watched
             ? Timestamp.fromDate(DateTime.now())
             : null,
-      });
+      };
+      if (status == WatchlistFilterStatus.watched) {
+        updateData['isUpNext'] = false;
+      }
+      await _watchlistRef(uid).doc(movieId.toString()).update(updateData);
     } on FirebaseException catch (e) {
       throw WatchlistException(_mapFirestoreError(e), code: e.code);
     } catch (_) {
       throw const WatchlistException('Could not update watch status.');
+    }
+  }
+
+  Future<void> toggleUpNext({
+    required String uid,
+    required int movieId,
+    required bool isUpNext,
+  }) async {
+    try {
+      await _watchlistRef(uid).doc(movieId.toString()).update({
+        'isUpNext': isUpNext,
+      });
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapFirestoreError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not update Up Next status.');
+    }
+  }
+
+  Future<void> incrementRewatch({
+    required String uid,
+    required int movieId,
+    required int nextCount,
+  }) async {
+    try {
+      await _watchlistRef(uid).doc(movieId.toString()).update({
+        'rewatchCount': nextCount,
+        'watchedAt': Timestamp.fromDate(DateTime.now()),
+      });
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapFirestoreError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not log rewatch.');
+    }
+  }
+
+  Future<String> cloneCollectionWithMovies({
+    required String uid,
+    required String name,
+    required List<WatchlistMovieModel> moviesToSave,
+    required List<int> allMovieIds,
+  }) async {
+    try {
+      final batch = _firestore.batch();
+      final collectionDoc = _collectionsRef(uid).doc();
+      final collection = WatchlistCollectionModel(
+        id: collectionDoc.id,
+        name: name.trim(),
+        movieIds: allMovieIds,
+        createdAt: DateTime.now(),
+      );
+      batch.set(collectionDoc, collection.toFirestoreMap());
+
+      for (final movie in moviesToSave) {
+        final movieDoc = _watchlistRef(uid).doc(movie.movieId.toString());
+        batch.set(movieDoc, movie.toFirestoreMap());
+      }
+
+      await batch.commit();
+      return collectionDoc.id;
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapFirestoreError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not clone collection.');
     }
   }
 

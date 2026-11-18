@@ -5,8 +5,10 @@ import '../../../../core/error/app_exception.dart';
 import '../models/community_poll_model.dart';
 import '../models/curated_list_model.dart';
 import '../models/movie_review_model.dart';
+import '../models/review_comment_model.dart';
 import '../models/review_report_model.dart';
 import '../models/user_profile_model.dart';
+import '../models/weekly_challenge_model.dart';
 
 /// Repository managing community user profiles and public movie reviews.
 class CommunityRepository {
@@ -19,6 +21,8 @@ class CommunityRepository {
   static const String reportsCollection = 'reports';
   static const String pollsCollection = 'community_polls';
   static const String listsCollection = 'community_lists';
+  static const String challengesCollection = 'community_challenges';
+  static const String commentsSubcollection = 'comments';
   static const String adminsCollection = 'admins';
   static const String moderatorsCollection = 'moderators';
   static const String bannedUsersCollection = 'banned_users';
@@ -593,6 +597,189 @@ class CommunityRepository {
       throw WatchlistException(_mapError(e), code: e.code);
     } catch (_) {
       throw const WatchlistException('Could not delete curated list.');
+    }
+  }
+
+  CollectionReference<Map<String, dynamic>> _commentsRef(String reviewId) {
+    return _reviewsRef.doc(reviewId).collection(commentsSubcollection);
+  }
+
+  CollectionReference<Map<String, dynamic>> get _challengesRef {
+    return _firestore.collection(challengesCollection);
+  }
+
+  Stream<List<ReviewCommentModel>> watchReviewComments(String reviewId) {
+    return _commentsRef(reviewId)
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map(
+                (doc) =>
+                    ReviewCommentModel.fromMap(doc.id, reviewId, doc.data()),
+              )
+              .toList(),
+        );
+  }
+
+  Future<void> addReviewComment({
+    required String reviewId,
+    required ReviewCommentModel comment,
+  }) async {
+    final trimmed = comment.text.trim();
+    if (trimmed.isEmpty) {
+      throw const WatchlistException('Reply cannot be empty.');
+    }
+    if (trimmed.length > 300) {
+      throw const WatchlistException('Reply must be 300 characters or less.');
+    }
+    try {
+      if (await isUserBanned(comment.uid)) {
+        throw const WatchlistException(
+          'Your account has been suspended from commenting.',
+        );
+      }
+      final batch = _firestore.batch();
+      final commentDoc = _commentsRef(reviewId).doc();
+      batch.set(commentDoc, comment.toFirestoreMap());
+      batch.update(_reviewsRef.doc(reviewId), {
+        'replyCount': FieldValue.increment(1),
+      });
+      await batch.commit();
+    } on WatchlistException {
+      rethrow;
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not post your reply.');
+    }
+  }
+
+  Future<void> deleteReviewComment({
+    required String reviewId,
+    required String commentId,
+  }) async {
+    try {
+      final batch = _firestore.batch();
+      batch.delete(_commentsRef(reviewId).doc(commentId));
+      batch.update(_reviewsRef.doc(reviewId), {
+        'replyCount': FieldValue.increment(-1),
+      });
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not delete reply.');
+    }
+  }
+
+  Stream<WeeklyChallengeModel?> watchActiveChallenge() {
+    return _challengesRef
+        .where('isActive', isEqualTo: true)
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .snapshots()
+        .map((snap) {
+          if (snap.docs.isEmpty) return null;
+          final doc = snap.docs.first;
+          return WeeklyChallengeModel.fromMap(doc.id, doc.data());
+        });
+  }
+
+  Future<void> createWeeklyChallenge({
+    required String title,
+    required int movieId,
+    required String movieTitle,
+    String? posterPath,
+    required String prompt,
+    required String createdByUid,
+    int bonusPoints = 15,
+  }) async {
+    try {
+      final prevActive = await _challengesRef
+          .where('isActive', isEqualTo: true)
+          .get();
+      final batch = _firestore.batch();
+      for (final doc in prevActive.docs) {
+        batch.update(doc.reference, {'isActive': false});
+      }
+      final doc = _challengesRef.doc();
+      final now = DateTime.now();
+      final challenge = WeeklyChallengeModel(
+        id: doc.id,
+        title: title.trim().isEmpty ? 'Movie of the Week' : title.trim(),
+        movieId: movieId,
+        movieTitle: movieTitle.trim(),
+        posterPath: posterPath,
+        prompt: prompt.trim(),
+        bonusPoints: bonusPoints.clamp(1, 50),
+        createdByUid: createdByUid,
+        createdAt: now,
+        endsAt: now.add(const Duration(days: 7)),
+      );
+      batch.set(doc, challenge.toFirestoreMap());
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not create weekly challenge.');
+    }
+  }
+
+  Future<void> deleteWeeklyChallenge(String challengeId) async {
+    try {
+      await _challengesRef.doc(challengeId).delete();
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not delete weekly challenge.');
+    }
+  }
+
+  Future<bool> completeWeeklyChallenge({
+    required String challengeId,
+    required String uid,
+  }) async {
+    try {
+      if (await isUserBanned(uid)) {
+        throw const WatchlistException(
+          'Your account has been suspended from participating.',
+        );
+      }
+      return await _firestore.runTransaction((tx) async {
+        final challengeRef = _challengesRef.doc(challengeId);
+        final snap = await tx.get(challengeRef);
+        final data = snap.data();
+        if (!snap.exists || data == null) return false;
+
+        final participants = (data['participantUids'] is List)
+            ? (data['participantUids'] as List).whereType<String>().toList()
+            : <String>[];
+        if (participants.contains(uid)) return false;
+
+        final bonus = ((data['bonusPoints'] as num?)?.toInt() ?? 15).clamp(
+          1,
+          50,
+        );
+        final profileRef = _profileRef(uid);
+        final profileSnap = await tx.get(profileRef);
+
+        tx.update(challengeRef, {
+          'participantUids': FieldValue.arrayUnion([uid]),
+        });
+        if (profileSnap.exists) {
+          final currentRep =
+              (profileSnap.data()?['reputation'] as num?)?.toInt() ?? 0;
+          tx.update(profileRef, {'reputation': currentRep + bonus});
+        }
+        return true;
+      });
+    } on WatchlistException {
+      rethrow;
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not complete weekly challenge.');
     }
   }
 

@@ -199,6 +199,24 @@ final class CommunityCuratedListDeleted extends CommunityEvent {
   List<Object?> get props => [listId];
 }
 
+final class CommunityChallengeCompleted extends CommunityEvent {
+  const CommunityChallengeCompleted(this.challengeId);
+
+  final String challengeId;
+
+  @override
+  List<Object?> get props => [challengeId];
+}
+
+final class _CommunityActiveChallengeReceived extends CommunityEvent {
+  const _CommunityActiveChallengeReceived(this.challenge);
+
+  final WeeklyChallengeModel? challenge;
+
+  @override
+  List<Object?> get props => [challenge];
+}
+
 final class _CommunityPinnedPollReceived extends CommunityEvent {
   const _CommunityPinnedPollReceived(this.poll);
 

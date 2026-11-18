@@ -87,6 +87,7 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
       movieTitle: movie.title,
       initialRating: movie.userRating,
       initialNote: movie.userNote,
+      showPublishOption: true,
     );
     if (result != null && context.mounted) {
       await context.read<WatchlistCubit>().updateReview(
@@ -95,6 +96,20 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
         userRating: result.rating,
         userNote: result.note,
       );
+      if (result.publishToCommunity &&
+          result.rating != null &&
+          (result.note?.trim().length ?? 0) >= 5 &&
+          context.mounted) {
+        context.read<CommunityBloc>().add(
+          CommunityReviewSubmitted(
+            movie: movie.toMovieSummary(),
+            rating: result.rating!,
+            comment: result.note!.trim(),
+            hasSpoilers: result.hasSpoilers,
+            isVerifiedWatch: true,
+          ),
+        );
+      }
     }
   }
 
@@ -266,7 +281,13 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
                                     : activeMovies;
                                 TonightsPickDialog.show(
                                   context,
-                                  candidates: candidates,
+                                  allCandidates: candidates,
+                                  collectionCandidates:
+                                      state.selectedCollection != null
+                                      ? activeMovies
+                                      : null,
+                                  collectionName:
+                                      state.selectedCollection?.name,
                                   onOpenDetails: (picked) => _openDetails(
                                     context,
                                     picked,
@@ -434,6 +455,10 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
                 onTap: () => _openDetails(context, movie, heroTag),
                 onToggleStatus: () => _handleToggleStatus(context, movie),
                 onRateAndNote: () => _openReviewDialog(context, movie),
+                onToggleUpNext: () =>
+                    context.read<WatchlistCubit>().toggleUpNext(movie),
+                onLogRewatch: () =>
+                    context.read<WatchlistCubit>().logRewatch(movie),
                 onManageCollections: () =>
                     CollectionPickerSheet.show(context, movie: movie),
                 onRemove: () => _confirmRemove(context, movie),
@@ -456,6 +481,10 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
               onTap: () => _openDetails(context, movie, heroTag),
               onToggleStatus: () => _handleToggleStatus(context, movie),
               onRateAndNote: () => _openReviewDialog(context, movie),
+              onToggleUpNext: () =>
+                  context.read<WatchlistCubit>().toggleUpNext(movie),
+              onLogRewatch: () =>
+                  context.read<WatchlistCubit>().logRewatch(movie),
               onManageCollections: () =>
                   CollectionPickerSheet.show(context, movie: movie),
               onRemove: () => _confirmRemove(context, movie),

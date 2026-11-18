@@ -7,6 +7,7 @@ import 'package:cine_list/features/community/data/models/curated_list_model.dart
 import 'package:cine_list/features/community/data/models/movie_review_model.dart';
 import 'package:cine_list/features/community/data/models/review_report_model.dart';
 import 'package:cine_list/features/community/data/models/user_profile_model.dart';
+import 'package:cine_list/features/community/data/models/weekly_challenge_model.dart';
 import 'package:cine_list/features/community/data/repositories/community_repository.dart';
 import 'package:cine_list/features/community/presentation/bloc/community_bloc.dart';
 import 'package:cine_list/shared/models/movie_summary.dart';
@@ -758,6 +759,55 @@ void main() {
             movies: any(named: 'movies'),
           ),
         ).called(1);
+      },
+    );
+
+    blocTest<CommunityBloc, CommunityState>(
+      'CommunityChallengeCompleted awards bonus rep via repository',
+      build: () {
+        final challenge = WeeklyChallengeModel(
+          id: 'ch-1',
+          title: 'Movie of the Week',
+          movieId: 157336,
+          movieTitle: 'Interstellar',
+          prompt: 'Watch and discuss!',
+          bonusPoints: 15,
+          createdByUid: 'admin-1',
+          createdAt: DateTime(2026, 1, 1),
+        );
+        when(() => repository.watchProfile('uid-1'))
+            .thenAnswer((_) => Stream.value(sampleProfile));
+        when(() => repository.watchRecentReviews())
+            .thenAnswer((_) => Stream.value(const []));
+        when(() => repository.watchActiveChallenge())
+            .thenAnswer((_) => Stream.value(challenge));
+        when(
+          () => repository.completeWeeklyChallenge(
+            challengeId: 'ch-1',
+            uid: 'uid-1',
+          ),
+        ).thenAnswer((_) async => true);
+        return CommunityBloc(repository);
+      },
+      act: (bloc) async {
+        bloc.add(
+          const CommunityUserBound(uid: 'uid-1', email: 'yami@cinelist.app'),
+        );
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const CommunityChallengeCompleted('ch-1'));
+        await Future<void>.delayed(Duration.zero);
+      },
+      verify: (bloc) {
+        verify(
+          () => repository.completeWeeklyChallenge(
+            challengeId: 'ch-1',
+            uid: 'uid-1',
+          ),
+        ).called(1);
+        expect(
+          bloc.state.feedbackMessage,
+          'Watch Party completed! +15 bonus rep earned.',
+        );
       },
     );
   });

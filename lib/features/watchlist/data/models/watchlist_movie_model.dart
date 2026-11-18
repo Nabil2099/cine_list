@@ -35,6 +35,8 @@ class WatchlistMovieModel extends Equatable {
     this.userRating,
     this.userNote,
     this.runtimeMinutes,
+    this.isUpNext = false,
+    this.rewatchCount = 0,
   });
 
   factory WatchlistMovieModel.fromMovieSummary(
@@ -45,6 +47,8 @@ class WatchlistMovieModel extends Equatable {
     int? userRating,
     String? userNote,
     int? runtimeMinutes,
+    bool isUpNext = false,
+    int rewatchCount = 0,
   }) {
     final now = DateTime.now();
     return WatchlistMovieModel(
@@ -62,6 +66,8 @@ class WatchlistMovieModel extends Equatable {
       userRating: userRating,
       userNote: userNote,
       runtimeMinutes: runtimeMinutes,
+      isUpNext: isUpNext,
+      rewatchCount: rewatchCount,
     );
   }
 
@@ -79,6 +85,8 @@ class WatchlistMovieModel extends Equatable {
       userRating: (map['userRating'] as num?)?.toInt(),
       userNote: map['userNote'] as String?,
       runtimeMinutes: (map['runtimeMinutes'] as num?)?.toInt(),
+      isUpNext: map['isUpNext'] == true,
+      rewatchCount: ((map['rewatchCount'] as num?)?.toInt() ?? 0).clamp(0, 999),
     );
   }
 
@@ -94,6 +102,8 @@ class WatchlistMovieModel extends Equatable {
   final int? userRating;
   final String? userNote;
   final int? runtimeMinutes;
+  final bool isUpNext;
+  final int rewatchCount;
 
   bool get isWatched => status == WatchlistFilterStatus.watched;
 
@@ -122,6 +132,8 @@ class WatchlistMovieModel extends Equatable {
       'userRating': userRating,
       'userNote': userNote,
       'runtimeMinutes': runtimeMinutes,
+      'isUpNext': isUpNext,
+      'rewatchCount': rewatchCount,
     };
   }
 
@@ -134,6 +146,8 @@ class WatchlistMovieModel extends Equatable {
     String? userNote,
     bool clearUserNote = false,
     int? runtimeMinutes,
+    bool? isUpNext,
+    int? rewatchCount,
   }) {
     return WatchlistMovieModel(
       movieId: movieId,
@@ -148,6 +162,8 @@ class WatchlistMovieModel extends Equatable {
       userRating: clearUserRating ? null : (userRating ?? this.userRating),
       userNote: clearUserNote ? null : (userNote ?? this.userNote),
       runtimeMinutes: runtimeMinutes ?? this.runtimeMinutes,
+      isUpNext: isUpNext ?? this.isUpNext,
+      rewatchCount: rewatchCount ?? this.rewatchCount,
     );
   }
 
@@ -172,5 +188,7 @@ class WatchlistMovieModel extends Equatable {
     userRating,
     userNote,
     runtimeMinutes,
+    isUpNext,
+    rewatchCount,
   ];
 }

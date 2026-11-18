@@ -4,6 +4,7 @@ import '../../data/models/community_poll_model.dart';
 import '../../data/models/curated_list_model.dart';
 import '../../data/models/movie_review_model.dart';
 import '../../data/models/user_profile_model.dart';
+import '../../data/models/weekly_challenge_model.dart';
 
 enum CommunityStatus { initial, loading, loaded, error }
 
@@ -26,6 +27,7 @@ class CommunityState extends Equatable {
     this.adminUids = const {},
     this.moderatorUids = const {},
     this.pinnedPoll,
+    this.activeChallenge,
     this.curatedLists = const [],
     this.sortOption = CommunitySortOption.latest,
     this.followingOnly = false,
@@ -45,6 +47,7 @@ class CommunityState extends Equatable {
   final Set<String> adminUids;
   final Set<String> moderatorUids;
   final CommunityPollModel? pinnedPoll;
+  final WeeklyChallengeModel? activeChallenge;
   final List<CuratedListModel> curatedLists;
   final CommunitySortOption sortOption;
   final bool followingOnly;
@@ -125,6 +128,8 @@ class CommunityState extends Equatable {
     Set<String>? moderatorUids,
     CommunityPollModel? pinnedPoll,
     bool clearPinnedPoll = false,
+    WeeklyChallengeModel? activeChallenge,
+    bool clearActiveChallenge = false,
     List<CuratedListModel>? curatedLists,
     CommunitySortOption? sortOption,
     bool? followingOnly,
@@ -146,6 +151,9 @@ class CommunityState extends Equatable {
       adminUids: adminUids ?? this.adminUids,
       moderatorUids: moderatorUids ?? this.moderatorUids,
       pinnedPoll: clearPinnedPoll ? null : (pinnedPoll ?? this.pinnedPoll),
+      activeChallenge: clearActiveChallenge
+          ? null
+          : (activeChallenge ?? this.activeChallenge),
       curatedLists: curatedLists ?? this.curatedLists,
       sortOption: sortOption ?? this.sortOption,
       followingOnly: followingOnly ?? this.followingOnly,
@@ -170,6 +178,7 @@ class CommunityState extends Equatable {
     adminUids,
     moderatorUids,
     pinnedPoll,
+    activeChallenge,
     curatedLists,
     sortOption,
     followingOnly,

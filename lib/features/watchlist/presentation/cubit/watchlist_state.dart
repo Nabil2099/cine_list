@@ -80,8 +80,16 @@ class WatchlistState extends Equatable {
         );
     }
 
+    if (selectedTab == WatchlistFilterStatus.wantToWatch) {
+      final upNext = filtered.where((m) => m.isUpNext).toList();
+      final rest = filtered.where((m) => !m.isUpNext).toList();
+      return [...upNext, ...rest];
+    }
+
     return filtered;
   }
+
+  int get upNextCount => wantToWatchMovies.where((m) => m.isUpNext).length;
 
   int get completionPercent {
     if (movies.isEmpty) return 0;
@@ -100,7 +108,7 @@ class WatchlistState extends Equatable {
   int get totalMinutesWatched {
     return watchedMovies.fold<int>(
       0,
-      (acc, m) => acc + (m.runtimeMinutes ?? 120),
+      (acc, m) => acc + ((m.runtimeMinutes ?? 120) * (1 + m.rewatchCount)),
     );
   }
 

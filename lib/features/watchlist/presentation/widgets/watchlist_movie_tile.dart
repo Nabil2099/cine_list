@@ -16,6 +16,8 @@ class WatchlistMovieTile extends StatelessWidget {
     required this.onRemove,
     this.onRateAndNote,
     this.onManageCollections,
+    this.onToggleUpNext,
+    this.onLogRewatch,
     this.isMutating = false,
     this.heroTag,
   });
@@ -26,6 +28,8 @@ class WatchlistMovieTile extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback? onRateAndNote;
   final VoidCallback? onManageCollections;
+  final VoidCallback? onToggleUpNext;
+  final VoidCallback? onLogRewatch;
   final bool isMutating;
   final String? heroTag;
 
@@ -124,32 +128,112 @@ class WatchlistMovieTile extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isWatched
-                          ? AppColors.pacificBlue.withValues(alpha: 0.16)
-                          : AppColors.softPeriwinkle.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: isWatched
-                            ? AppColors.pacificBlue.withValues(alpha: 0.45)
-                            : AppColors.softPeriwinkle.withValues(alpha: 0.4),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isWatched
+                              ? AppColors.pacificBlue.withValues(alpha: 0.16)
+                              : AppColors.softPeriwinkle.withValues(
+                                  alpha: 0.16,
+                                ),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isWatched
+                                ? AppColors.pacificBlue.withValues(alpha: 0.45)
+                                : AppColors.softPeriwinkle.withValues(
+                                    alpha: 0.4,
+                                  ),
+                          ),
+                        ),
+                        child: Text(
+                          isWatched ? 'Watched' : 'Want to Watch',
+                          style: TextStyle(
+                            color: isWatched
+                                ? AppColors.pacificBlue
+                                : AppColors.softPeriwinkle,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                    ),
-                    child: Text(
-                      isWatched ? 'Watched' : 'Want to Watch',
-                      style: TextStyle(
-                        color: isWatched
-                            ? AppColors.pacificBlue
-                            : AppColors.softPeriwinkle,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                      if (!isWatched && movie.isUpNext)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.khakiBeige.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: AppColors.khakiBeige.withValues(
+                                alpha: 0.55,
+                              ),
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.push_pin_rounded,
+                                size: 11,
+                                color: AppColors.khakiBeige,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Up Next',
+                                style: TextStyle(
+                                  color: AppColors.khakiBeige,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (isWatched && movie.rewatchCount > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.starAmber.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: AppColors.starAmber.withValues(
+                                alpha: 0.45,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.replay_rounded,
+                                size: 11,
+                                color: AppColors.starAmber,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Rewatched ×${movie.rewatchCount}',
+                                style: const TextStyle(
+                                  color: AppColors.starAmber,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -169,6 +253,10 @@ class WatchlistMovieTile extends StatelessWidget {
                   onSelected: (value) {
                     if (value == 'toggle') {
                       onToggleStatus();
+                    } else if (value == 'up_next') {
+                      onToggleUpNext?.call();
+                    } else if (value == 'rewatch') {
+                      onLogRewatch?.call();
                     } else if (value == 'review') {
                       onRateAndNote?.call();
                     } else if (value == 'collections') {
@@ -198,6 +286,42 @@ class WatchlistMovieTile extends StatelessWidget {
                         ],
                       ),
                     ),
+                    if (!isWatched && onToggleUpNext != null)
+                      PopupMenuItem<String>(
+                        value: 'up_next',
+                        child: Row(
+                          children: [
+                            Icon(
+                              movie.isUpNext
+                                  ? Icons.push_pin_outlined
+                                  : Icons.push_pin_rounded,
+                              size: 18,
+                              color: AppColors.khakiBeige,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              movie.isUpNext
+                                  ? 'Remove from Up Next'
+                                  : 'Pin to Up Next',
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (isWatched && onLogRewatch != null)
+                      const PopupMenuItem<String>(
+                        value: 'rewatch',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.replay_rounded,
+                              size: 18,
+                              color: AppColors.starAmber,
+                            ),
+                            SizedBox(width: 10),
+                            Text('Log Rewatch (+1)'),
+                          ],
+                        ),
+                      ),
                     if (isWatched && onRateAndNote != null)
                       const PopupMenuItem<String>(
                         value: 'review',

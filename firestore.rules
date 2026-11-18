@@ -55,7 +55,9 @@ service cloud.firestore {
         && (!('releaseDate' in data) || data.releaseDate == null || data.releaseDate is string)
         && (!('userRating' in data) || data.userRating == null || (data.userRating is int && data.userRating >= 1 && data.userRating <= 5))
         && (!('userNote' in data) || data.userNote == null || (data.userNote is string && data.userNote.size() <= 500))
-        && (!('runtimeMinutes' in data) || data.runtimeMinutes == null || data.runtimeMinutes is int);
+        && (!('runtimeMinutes' in data) || data.runtimeMinutes == null || data.runtimeMinutes is int)
+        && (!('isUpNext' in data) || data.isUpNext is bool)
+        && (!('rewatchCount' in data) || (data.rewatchCount is int && data.rewatchCount >= 0));
     }
 
     function isValidUserProfile(data) {
@@ -147,8 +149,20 @@ service cloud.firestore {
       allow update: if isSignedIn() && isNotBanned() && (
         isValidReview(request.resource.data)
         || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'dislikedBy'])
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['replyCount'])
       );
       allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isStaff());
+
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && isNotBanned()
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() >= 1
+          && request.resource.data.text.size() <= 300;
+        allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isStaff());
+      }
     }
 
     match /reports/{reportId} {
@@ -210,6 +224,19 @@ service cloud.firestore {
         || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy'])
       );
       allow delete: if isSignedIn() && (resource.data.authorUid == request.auth.uid || isStaff());
+    }
+
+    match /community_challenges/{challengeId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isStaff();
+      allow update: if isStaff() || (
+        isSignedIn()
+        && isNotBanned()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participantUids'])
+        && request.resource.data.participantUids.hasAll(resource.data.participantUids)
+        && request.resource.data.participantUids.size() == resource.data.participantUids.size() + 1
+        && request.auth.uid in request.resource.data.participantUids
+      );
     }
 
     // Deny all other document paths by default.

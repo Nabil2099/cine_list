@@ -18,6 +18,7 @@ class MovieReviewModel extends Equatable {
     this.dislikedBy = const [],
     this.hasSpoilers = false,
     this.isVerifiedWatch = false,
+    this.replyCount = 0,
   });
 
   factory MovieReviewModel.fromMap(String id, Map<String, dynamic> map) {
@@ -45,6 +46,7 @@ class MovieReviewModel extends Equatable {
       dislikedBy: dislikedBy,
       hasSpoilers: map['hasSpoilers'] == true,
       isVerifiedWatch: map['isVerifiedWatch'] == true,
+      replyCount: ((map['replyCount'] as num?)?.toInt() ?? 0).clamp(0, 999999),
     );
   }
 
@@ -62,6 +64,7 @@ class MovieReviewModel extends Equatable {
   final List<String> dislikedBy;
   final bool hasSpoilers;
   final bool isVerifiedWatch;
+  final int replyCount;
 
   bool isLikedBy(String? uid) => uid != null && likedBy.contains(uid);
   bool isDislikedBy(String? uid) => uid != null && dislikedBy.contains(uid);
@@ -83,6 +86,7 @@ class MovieReviewModel extends Equatable {
       'dislikedBy': dislikedBy,
       'hasSpoilers': hasSpoilers,
       'isVerifiedWatch': isVerifiedWatch,
+      'replyCount': replyCount,
     };
   }
 
@@ -97,6 +101,7 @@ class MovieReviewModel extends Equatable {
     List<String>? dislikedBy,
     bool? hasSpoilers,
     bool? isVerifiedWatch,
+    int? replyCount,
   }) {
     return MovieReviewModel(
       id: id,
@@ -113,6 +118,7 @@ class MovieReviewModel extends Equatable {
       dislikedBy: dislikedBy ?? this.dislikedBy,
       hasSpoilers: hasSpoilers ?? this.hasSpoilers,
       isVerifiedWatch: isVerifiedWatch ?? this.isVerifiedWatch,
+      replyCount: replyCount ?? this.replyCount,
     );
   }
 
@@ -132,5 +138,6 @@ class MovieReviewModel extends Equatable {
     dislikedBy,
     hasSpoilers,
     isVerifiedWatch,
+    replyCount,
   ];
 }

@@ -31,6 +31,11 @@ class WebSideNavBar extends StatelessWidget {
       label: 'AI',
     ),
     (
+      icon: Icons.dynamic_feed_outlined,
+      activeIcon: Icons.dynamic_feed_rounded,
+      label: 'Feed',
+    ),
+    (
       icon: Icons.groups_outlined,
       activeIcon: Icons.groups_rounded,
       label: 'Community',

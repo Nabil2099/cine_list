@@ -278,10 +278,20 @@ class ProfileScreen extends StatelessWidget {
                 const SizedBox(height: 20),
 
                 // Stats Grid
-                Text(
-                  'Your Cinema Stats',
-                  style: Theme.of(context).textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w700),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Your Cinema Stats',
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => context.push('/stats'),
+                      icon: const Icon(Icons.auto_graph_rounded, size: 17),
+                      label: const Text('Cinema Wrapped'),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 10),
                 Row(

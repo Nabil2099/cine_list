@@ -11,6 +11,7 @@ class WatchlistStatsCard extends StatelessWidget {
     required this.completionPercent,
     required this.totalMinutesWatched,
     this.averagePersonalRating,
+    this.onTap,
   });
 
   final int totalMovies;
@@ -18,6 +19,7 @@ class WatchlistStatsCard extends StatelessWidget {
   final int completionPercent;
   final int totalMinutesWatched;
   final double? averagePersonalRating;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -25,48 +27,60 @@ class WatchlistStatsCard extends StatelessWidget {
 
     final hoursWatched = (totalMinutesWatched / 60).toStringAsFixed(1);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.surfaceCard,
-            AppColors.dustyLavender.withValues(alpha: 0.22),
-          ],
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.surfaceCard,
+              AppColors.dustyLavender.withValues(alpha: 0.22),
+            ],
+          ),
+          border: Border.all(color: AppColors.surfaceBorder),
         ),
-        border: Border.all(color: AppColors.surfaceBorder),
-      ),
-      child: Row(
-        children: [
-          _StatItem(
-            label: 'Watched',
-            value: '$watchedCount/$totalMovies',
-            accent: AppColors.pacificBlue,
-          ),
-          _Divider(),
-          _StatItem(
-            label: 'Completion',
-            value: '$completionPercent%',
-            accent: AppColors.khakiBeige,
-          ),
-          _Divider(),
-          _StatItem(
-            label: 'Hours',
-            value: '${hoursWatched}h',
-            accent: AppColors.softPeriwinkle,
-          ),
-          if (averagePersonalRating != null) ...[
+        child: Row(
+          children: [
+            _StatItem(
+              label: 'Watched',
+              value: '$watchedCount/$totalMovies',
+              accent: AppColors.pacificBlue,
+            ),
             _Divider(),
             _StatItem(
-              label: 'My Avg',
-              value: '★ ${averagePersonalRating!.toStringAsFixed(1)}',
-              accent: AppColors.starAmber,
+              label: 'Completion',
+              value: '$completionPercent%',
+              accent: AppColors.khakiBeige,
             ),
+            _Divider(),
+            _StatItem(
+              label: 'Hours',
+              value: '${hoursWatched}h',
+              accent: AppColors.softPeriwinkle,
+            ),
+            if (averagePersonalRating != null) ...[
+              _Divider(),
+              _StatItem(
+                label: 'My Avg',
+                value: '★ ${averagePersonalRating!.toStringAsFixed(1)}',
+                accent: AppColors.starAmber,
+              ),
+            ],
+            if (onTap != null) ...[
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textMuted,
+                size: 18,
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

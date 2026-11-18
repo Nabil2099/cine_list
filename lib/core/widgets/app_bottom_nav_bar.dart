@@ -61,6 +61,17 @@ class AppBottomNavigationBar extends StatelessWidget {
             label: 'AI',
           ),
           NavigationDestination(
+            icon: Icon(
+              Icons.dynamic_feed_outlined,
+              color: AppColors.textSecondary,
+            ),
+            selectedIcon: Icon(
+              Icons.dynamic_feed_rounded,
+              color: AppColors.pacificBlue,
+            ),
+            label: 'Feed',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.groups_outlined, color: AppColors.textSecondary),
             selectedIcon: Icon(
               Icons.groups_rounded,

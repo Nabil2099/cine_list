@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/routing/movie_details_route.dart';
@@ -266,6 +267,7 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
                             completionPercent: state.completionPercent,
                             totalMinutesWatched: state.totalMinutesWatched,
                             averagePersonalRating: state.averagePersonalRating,
+                            onTap: () => context.push('/stats'),
                           ),
                         ],
                         if (state.wantToWatchMovies.isNotEmpty ||

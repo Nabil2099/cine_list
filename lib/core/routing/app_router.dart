@@ -11,10 +11,12 @@ import '../../features/auth/presentation/cubit/auth_state.dart';
 import '../../features/auth/presentation/screens/auth_screen.dart';
 import '../../features/auth/presentation/screens/verify_email_screen.dart';
 import '../../features/community/presentation/screens/community_screen.dart';
+import '../../features/community/presentation/screens/following_feed_screen.dart';
 import '../../features/discover/presentation/bloc/discover_bloc.dart';
 import '../../features/discover/presentation/screens/discover_screen.dart';
 import '../../features/landing/presentation/screens/web_landing_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
+import '../../features/watchlist/presentation/screens/cinema_stats_screen.dart';
 import '../../features/watchlist/presentation/screens/watchlist_screen.dart';
 import '../widgets/splash_screen.dart';
 import 'app_shell.dart';
@@ -169,6 +171,17 @@ class AppRouter {
           StatefulShellBranch(
             routes: [
               GoRoute(
+                path: '/feed',
+                builder: (context, state) => FollowingFeedScreen(
+                  onExploreCommunity: () =>
+                      StatefulNavigationShell.of(context).goBranch(4),
+                ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
                 path: '/community',
                 builder: (context, state) => const CommunityScreen(),
               ),
@@ -179,6 +192,10 @@ class AppRouter {
       GoRoute(
         path: '/movie/:id',
         pageBuilder: (context, state) => MovieDetailsRoute.buildPage(state),
+      ),
+      GoRoute(
+        path: '/stats',
+        builder: (context, state) => const CinemaStatsScreen(),
       ),
       GoRoute(path: '/admin', builder: (context, state) => const AdminScreen()),
       GoRoute(

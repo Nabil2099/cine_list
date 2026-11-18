@@ -58,7 +58,12 @@ Future<void> configureDependencies({
   sl.registerFactory<WatchlistCubit>(
     () => WatchlistCubit(sl<WatchlistRepository>()),
   );
-  sl.registerFactory<AiChatCubit>(() => AiChatCubit(sl<AiChatRepository>()));
+  sl.registerFactory<AiChatCubit>(
+    () => AiChatCubit(
+      sl<AiChatRepository>(),
+      preferencesService: sl<PreferencesService>(),
+    ),
+  );
   sl.registerFactory<CommunityBloc>(
     () => CommunityBloc(sl<CommunityRepository>()),
   );

@@ -7,6 +7,7 @@ abstract final class AppConstants {
   static const String settingsBox = 'cinelist_settings';
   static const String selectedCategoryKey = 'selected_discover_category';
   static const String compactGridKey = 'compact_grid_enabled';
+  static const String aiChatHistoryKey = 'ai_chat_history';
 
   // Firestore collections & fields
   static const String usersCollection = 'users';

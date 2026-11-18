@@ -3,14 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../core/routing/movie_details_route.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../discover/data/repositories/discover_repository.dart';
+import '../../../community/data/models/movie_review_model.dart';
+import '../../../community/presentation/bloc/community_bloc.dart';
 import '../../../watchlist/presentation/cubit/watchlist_cubit.dart';
+import '../../data/models/ai_chat_context.dart';
 import '../../data/models/chat_message_model.dart';
 import '../cubit/ai_chat_cubit.dart';
 import '../cubit/ai_chat_state.dart';
+import '../widgets/ai_pick_cards_row.dart';
 import '../widgets/formatted_chat_text.dart';
 
 class _MoodOption {
@@ -19,15 +20,6 @@ class _MoodOption {
   final String label;
   final String emoji;
   final String prompt;
-}
-
-class _RecommendedMoviePick {
-  const _RecommendedMoviePick({required this.title, this.year});
-
-  final String title;
-  final String? year;
-
-  String get displayLabel => year != null ? '$title ($year)' : title;
 }
 
 /// AI Movie Concierge chatbot screen grounded in the user's watchlist.
@@ -44,6 +36,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   static const _quickPrompts = [
     'Recommend 5 movies based on my watchlist',
+    'Build a 5-movie marathon based on my taste',
     'What should I watch tonight?',
     'Suggest hidden gems similar to my watched movies',
     'Pick something from my Want to Watch list',
@@ -92,52 +85,25 @@ class _AiChatScreenState extends State<AiChatScreen> {
       _inputController.clear();
     }
 
-    final watchlist = context.read<WatchlistCubit>().state.movies;
-    context.read<AiChatCubit>().sendMessage(text, watchlist: watchlist);
+    final watchlistState = context.read<WatchlistCubit>().state;
+    final communityState = context.read<CommunityBloc>().state;
+    final followingUids =
+        communityState.profile?.followingUids.toSet() ?? const <String>{};
+    final followedReviews = followingUids.isEmpty
+        ? const <MovieReviewModel>[]
+        : communityState.reviews
+              .where((r) => followingUids.contains(r.uid))
+              .toList();
+
+    final aiContext = AiChatContext(
+      watchlist: watchlistState.movies,
+      collections: watchlistState.collections,
+      activeChallenge: communityState.activeChallenge,
+      followedReviews: followedReviews,
+    );
+
+    context.read<AiChatCubit>().sendMessage(text, context: aiContext);
     _scrollToBottom();
-  }
-
-  Future<void> _openRecommendedMovie(_RecommendedMoviePick pick) async {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('Looking up "${pick.displayLabel}" on TMDB...'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-
-    try {
-      final response = await sl<DiscoverRepository>().searchMovies(
-        query: pick.title,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-      if (response.results.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not find "${pick.title}" on TMDB.')),
-        );
-        return;
-      }
-
-      var match = response.results.first;
-      if (pick.year != null) {
-        for (final candidate in response.results) {
-          if ((candidate.releaseDate ?? '').startsWith(pick.year!)) {
-            match = candidate;
-            break;
-          }
-        }
-      }
-
-      MovieDetailsRoute.push(context, movieId: match.id, initialMovie: match);
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to look up "${pick.title}" right now.')),
-      );
-    }
   }
 
   void _scrollToBottom() {
@@ -185,21 +151,23 @@ class _AiChatScreenState extends State<AiChatScreen> {
                       );
                     }
 
-                    final itemCount =
-                        state.messages.length + (state.isSending ? 1 : 0);
-
                     return ListView.separated(
                       controller: _scrollController,
                       padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                      itemCount: itemCount,
+                      itemCount: state.messages.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
-                        if (state.isSending && index == state.messages.length) {
+                        final msg = state.messages[index];
+                        final isStreamingMsg =
+                            state.isSending &&
+                            index == state.messages.length - 1 &&
+                            !msg.isUser;
+                        if (isStreamingMsg && msg.text.isEmpty) {
                           return const _TypingBubble();
                         }
                         return _ChatBubble(
-                          message: state.messages[index],
-                          onMovieTap: _openRecommendedMovie,
+                          message: msg,
+                          isStreaming: isStreamingMsg,
                         );
                       },
                     );
@@ -411,23 +379,23 @@ class _AiEmptyPrompts extends StatelessWidget {
 }
 
 class _ChatBubble extends StatelessWidget {
-  const _ChatBubble({required this.message, required this.onMovieTap});
+  const _ChatBubble({required this.message, this.isStreaming = false});
 
   final ChatMessageModel message;
-  final ValueChanged<_RecommendedMoviePick> onMovieTap;
+  final bool isStreaming;
 
   static final RegExp _movieTitlePattern = RegExp(
     r'\*\*([^*()\n]{2,60}?)\s*\((\d{4})\)\*\*',
   );
 
-  List<_RecommendedMoviePick> _extractPicks(String text) {
-    final picks = <_RecommendedMoviePick>[];
+  List<AiRecommendedPick> _extractPicks(String text) {
+    final picks = <AiRecommendedPick>[];
     final seen = <String>{};
     for (final match in _movieTitlePattern.allMatches(text)) {
       final title = match.group(1)?.trim() ?? '';
       final year = match.group(2)?.trim();
       if (title.isNotEmpty && seen.add(title.toLowerCase())) {
-        picks.add(_RecommendedMoviePick(title: title, year: year));
+        picks.add(AiRecommendedPick(title: title, year: year));
       }
     }
     return picks;
@@ -437,9 +405,9 @@ class _ChatBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final isUser = message.isUser;
     final isError = message.isError;
-    final picks = (!isUser && !isError)
+    final picks = (!isUser && !isError && !isStreaming)
         ? _extractPicks(message.text)
-        : const <_RecommendedMoviePick>[];
+        : const <AiRecommendedPick>[];
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
@@ -536,70 +504,7 @@ class _ChatBubble extends StatelessWidget {
                   baseColor: isUser ? AppColors.black : AppColors.textPrimary,
                   boldColor: isUser ? AppColors.black : AppColors.khakiBeige,
                 ),
-                if (picks.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: picks
-                        .map(
-                          (pick) => InkWell(
-                            onTap: () => onMovieTap(pick),
-                            borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.pacificBlue.withValues(
-                                  alpha: 0.14,
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: AppColors.pacificBlue.withValues(
-                                    alpha: 0.45,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.movie_outlined,
-                                    size: 14,
-                                    color: AppColors.pacificBlue,
-                                  ),
-                                  const SizedBox(width: 5),
-                                  ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      maxWidth: 210,
-                                    ),
-                                    child: Text(
-                                      pick.displayLabel,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: AppColors.pacificBlue,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Icon(
-                                    Icons.arrow_forward_ios_rounded,
-                                    size: 11,
-                                    color: AppColors.pacificBlue,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ],
+                if (picks.isNotEmpty) AiPickCardsRow(picks: picks),
               ],
             ),
           ),

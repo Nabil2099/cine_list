@@ -426,9 +426,14 @@ void main() {
     );
 
     test(
-      'CommunityState.topCritics sorts profiles by reputation descending',
+      'CommunityState.topCritics excludes 0-pt users and sorts by reputation descending',
       () {
         final users = {
+          'u0': const UserProfileModel(
+            uid: 'u0',
+            displayName: 'Zero',
+            reputation: 0,
+          ),
           'u1': const UserProfileModel(
             uid: 'u1',
             displayName: 'User 1',
@@ -447,6 +452,10 @@ void main() {
         };
         final state = CommunityState(userProfilesByUid: users);
         expect(state.topCritics.map((u) => u.uid).toList(), ['u2', 'u3', 'u1']);
+        expect(
+          state.leaderboard.map((u) => u.uid).toList(),
+          ['u2', 'u3', 'u1', 'u0'],
+        );
       },
     );
 

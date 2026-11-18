@@ -92,9 +92,21 @@ class CommunityState extends Equatable {
   }
 
   List<UserProfileModel> get topCritics {
-    final list = userProfilesByUid.values.toList();
+    final list = userProfilesByUid.values
+        .where((u) => u.reputation > 0)
+        .toList();
     list.sort((a, b) => b.reputation.compareTo(a.reputation));
     return list.take(8).toList();
+  }
+
+  List<UserProfileModel> get leaderboard {
+    final list = userProfilesByUid.values.toList();
+    list.sort((a, b) {
+      final repCmp = b.reputation.compareTo(a.reputation);
+      if (repCmp != 0) return repCmp;
+      return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+    });
+    return list;
   }
 
   CommunityState copyWith({

@@ -11,6 +11,7 @@ import '../../../community/data/models/movie_review_model.dart';
 import '../../../community/data/models/user_profile_model.dart';
 import '../../../community/presentation/bloc/community_bloc.dart';
 import '../../../community/presentation/widgets/edit_profile_dialog.dart';
+import '../../../community/presentation/widgets/follow_list_sheet.dart';
 import '../../../community/presentation/widgets/user_avatar_widget.dart';
 import '../../../watchlist/presentation/cubit/watchlist_cubit.dart';
 
@@ -126,7 +127,7 @@ class ProfileScreen extends StatelessWidget {
                               reputation: profile.reputation,
                               isAdmin: communityState.isAdmin,
                               isModerator: communityState.isModerator,
-                              showRankBadge: communityState.isAdmin,
+                              showRankBadge: true,
                               radius: 44,
                             ),
                             Positioned(
@@ -261,7 +262,15 @@ class ProfileScreen extends StatelessWidget {
                           height: 1.4,
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
+                      FollowCountsRow(
+                        followerUids: FollowListSheet.followersOf(
+                          uid,
+                          communityState.userProfilesByUid,
+                        ),
+                        followingUids: profile.followingUids,
+                      ),
+                      const SizedBox(height: 14),
                       FilledButton.icon(
                         onPressed: () => _editProfile(context, profile),
                         icon: const Icon(Icons.photo_camera_outlined, size: 18),

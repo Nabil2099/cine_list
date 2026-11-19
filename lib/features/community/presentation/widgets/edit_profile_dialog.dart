@@ -2,10 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/user_profile_model.dart';
+import '../bloc/community_bloc.dart';
+import 'follow_list_sheet.dart';
 import 'user_avatar_widget.dart';
 
 class ProfileEditResult {
@@ -178,6 +181,30 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
               ],
             ),
             const SizedBox(height: 14),
+            Builder(
+              builder: (ctx) {
+                try {
+                  final communityState = ctx.watch<CommunityBloc>().state;
+                  final uid = widget.initialProfile.uid;
+                  final followerUids = FollowListSheet.followersOf(
+                    uid,
+                    communityState.userProfilesByUid,
+                  );
+                  final followingUids =
+                      communityState.profile?.followingUids ??
+                      widget.initialProfile.followingUids;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: FollowCountsRow(
+                      followerUids: followerUids,
+                      followingUids: followingUids,
+                    ),
+                  );
+                } catch (_) {
+                  return const SizedBox.shrink();
+                }
+              },
+            ),
             const Text(
               'Or Choose Preset Avatar',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),

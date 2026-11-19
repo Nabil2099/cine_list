@@ -148,32 +148,54 @@ class UserAvatar extends StatelessWidget {
       return circle;
     }
 
-    final badgeSize = (radius * 0.64).clamp(16.0, 25.0);
-    final badgeColor = isModerator ? AppColors.pacificBlue : tier.color;
-    final badgeIcon = isModerator ? Icons.gavel_rounded : tier.icon;
+    final badgeSize = (radius * 0.64).clamp(16.0, 26.0);
+    final topColor = isModerator ? AppColors.pacificBlue : tier.color;
+    final topIcon = isModerator ? Icons.gavel_rounded : tier.icon;
+    final hasSecondaryRank =
+        isModerator && radius >= 24 && tier != ReputationTier.viewer;
+    final secondarySize = (radius * 0.52).clamp(14.0, 22.0);
 
     return Stack(
       clipBehavior: Clip.none,
       children: [
         circle,
         Positioned(
-          right: -1,
-          bottom: -1,
+          right: -2,
+          top: -2,
           child: Container(
             width: badgeSize,
             height: badgeSize,
             decoration: BoxDecoration(
-              color: badgeColor,
+              color: topColor,
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.black, width: 1.6),
+              border: Border.all(color: AppColors.black, width: 1.8),
             ),
             child: Icon(
-              badgeIcon,
-              size: badgeSize * 0.62,
+              topIcon,
+              size: badgeSize * 0.6,
               color: AppColors.black,
             ),
           ),
         ),
+        if (hasSecondaryRank)
+          Positioned(
+            left: -2,
+            bottom: -2,
+            child: Container(
+              width: secondarySize,
+              height: secondarySize,
+              decoration: BoxDecoration(
+                color: tier.color,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.black, width: 1.6),
+              ),
+              child: Icon(
+                tier.icon,
+                size: secondarySize * 0.6,
+                color: AppColors.black,
+              ),
+            ),
+          ),
       ],
     );
   }

@@ -5,7 +5,7 @@
     "display": "standalone",
     "background_color": "#0B0D12",
     "theme_color": "#0B0D12",
-    "description": "A new Flutter project.",
+    "description": "Discover movies, build your watchlist, get AI picks, and share reviews with a community of film lovers.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

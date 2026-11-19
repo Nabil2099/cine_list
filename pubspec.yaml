@@ -1,5 +1,5 @@
 name: cine_list
-description: "A new Flutter project."
+description: "CineList – discover movies, build your watchlist, get AI picks, and share reviews with a community of film lovers."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

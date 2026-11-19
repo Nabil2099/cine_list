@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/routing/movie_details_route.dart';
@@ -300,6 +301,73 @@ class _DiscoverHeader extends StatelessWidget {
               ),
             ],
           ),
+        ),
+        const SizedBox(width: 8),
+        Builder(
+          builder: (context) {
+            final unreadCount = context.select<CommunityBloc, int>(
+              (b) => b.state.unreadNotificationCount,
+            );
+            return IconButton(
+              tooltip: 'Notifications',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              onPressed: () => context.push('/notifications'),
+              icon: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceCard,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: unreadCount > 0
+                            ? AppColors.error.withValues(alpha: 0.6)
+                            : AppColors.surfaceBorder,
+                      ),
+                    ),
+                    child: Icon(
+                      unreadCount > 0
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      color: unreadCount > 0
+                          ? AppColors.error
+                          : AppColors.khakiBeige,
+                      size: 20,
+                    ),
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.error,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: AppColors.black,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Text(
+                          unreadCount > 9 ? '9+' : '$unreadCount',
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
         ),
       ],
     );

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../data/models/app_notification_model.dart';
 import '../../data/models/movie_review_model.dart';
 import '../../data/models/review_comment_model.dart';
 import '../../data/repositories/community_repository.dart';
@@ -73,6 +74,21 @@ class _ReviewRepliesSheetState extends State<ReviewRepliesSheet> {
           authorName: profile?.displayName ?? 'Movie Fan',
           authorAvatarKey: profile?.avatarKey ?? 'cinema',
           text: text,
+          createdAt: DateTime.now(),
+        ),
+      );
+      await widget.repository.createNotification(
+        recipientUid: widget.review.uid,
+        notification: AppNotificationModel(
+          id: '',
+          type: AppNotificationType.reply,
+          actorUid: uid,
+          actorName: profile?.displayName ?? 'Movie Fan',
+          actorAvatarKey: profile?.avatarKey ?? 'cinema',
+          movieId: widget.review.movieId,
+          movieTitle: widget.review.movieTitle,
+          reviewId: widget.review.id,
+          snippet: text,
           createdAt: DateTime.now(),
         ),
       );

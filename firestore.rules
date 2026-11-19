@@ -141,6 +141,18 @@ service cloud.firestore {
           && request.resource.data.movieIds is list
           && request.resource.data.createdAt is timestamp;
       }
+
+      match /notifications/{notificationId} {
+        allow read, delete: if isOwner(uid);
+        allow update: if isOwner(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead'])
+          && request.resource.data.isRead is bool;
+        allow create: if isSignedIn()
+          && isNotBanned()
+          && request.resource.data.actorUid == request.auth.uid
+          && request.resource.data.type in ['like', 'reply', 'follow']
+          && request.resource.data.createdAt is timestamp;
+      }
     }
 
     match /reviews/{reviewId} {

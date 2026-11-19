@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../data/models/app_notification_model.dart';
 import '../../data/models/community_poll_model.dart';
 import '../../data/models/curated_list_model.dart';
 import '../../data/models/movie_review_model.dart';
@@ -29,6 +30,7 @@ class CommunityState extends Equatable {
     this.pinnedPoll,
     this.activeChallenge,
     this.curatedLists = const [],
+    this.notifications = const [],
     this.sortOption = CommunitySortOption.latest,
     this.followingOnly = false,
     this.searchQuery = '',
@@ -49,6 +51,7 @@ class CommunityState extends Equatable {
   final CommunityPollModel? pinnedPoll;
   final WeeklyChallengeModel? activeChallenge;
   final List<CuratedListModel> curatedLists;
+  final List<AppNotificationModel> notifications;
   final CommunitySortOption sortOption;
   final bool followingOnly;
   final String searchQuery;
@@ -60,6 +63,9 @@ class CommunityState extends Equatable {
   final String? feedbackMessage;
 
   bool get isStaff => isAdmin || isModerator;
+
+  int get unreadNotificationCount =>
+      notifications.where((n) => !n.isRead).length;
 
   List<MovieReviewModel> reviewsForMovie(int movieId) {
     return reviews.where((r) => r.movieId == movieId).toList();
@@ -131,6 +137,7 @@ class CommunityState extends Equatable {
     WeeklyChallengeModel? activeChallenge,
     bool clearActiveChallenge = false,
     List<CuratedListModel>? curatedLists,
+    List<AppNotificationModel>? notifications,
     CommunitySortOption? sortOption,
     bool? followingOnly,
     String? searchQuery,
@@ -155,6 +162,7 @@ class CommunityState extends Equatable {
           ? null
           : (activeChallenge ?? this.activeChallenge),
       curatedLists: curatedLists ?? this.curatedLists,
+      notifications: notifications ?? this.notifications,
       sortOption: sortOption ?? this.sortOption,
       followingOnly: followingOnly ?? this.followingOnly,
       searchQuery: searchQuery ?? this.searchQuery,
@@ -180,6 +188,7 @@ class CommunityState extends Equatable {
     pinnedPoll,
     activeChallenge,
     curatedLists,
+    notifications,
     sortOption,
     followingOnly,
     searchQuery,

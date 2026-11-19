@@ -118,17 +118,33 @@ class AiChatRepository {
     required List<ChatMessageModel> history,
     required AiChatContext context,
   }) {
-    final contents = history
-        .where((m) => !m.isError && m.text.trim().isNotEmpty)
-        .map(
-          (m) => {
-            'role': m.isUser ? 'user' : 'model',
-            'parts': [
-              {'text': m.text},
-            ],
-          },
-        )
+    final validMessages = history
+        .where((m) => !m.isError && (m.text.trim().isNotEmpty || m.hasImage))
         .toList();
+    final lastImageIndex = validMessages.lastIndexWhere((m) => m.hasImage);
+
+    final contents = <Map<String, dynamic>>[];
+    for (var i = 0; i < validMessages.length; i++) {
+      final m = validMessages[i];
+      final parts = <Map<String, dynamic>>[];
+      if (m.hasImage && i == lastImageIndex) {
+        parts.add({
+          'inlineData': {
+            'mimeType': m.imageMimeType ?? 'image/jpeg',
+            'data': m.imageBase64,
+          },
+        });
+      }
+      if (m.text.trim().isNotEmpty) {
+        parts.add({'text': m.text});
+      }
+      if (parts.isNotEmpty) {
+        contents.add({
+          'role': m.isUser ? 'user' : 'model',
+          'parts': parts,
+        });
+      }
+    }
 
     final body = <String, dynamic>{
       'systemInstruction': {
@@ -350,6 +366,7 @@ $followedSection
 Response Guidelines:
 - Pay special attention to their Up Next queue, 5/5 ratings, rewatched films, and custom collections to understand their core taste.
 - Reference followed critics' reviews or the active Watch Party when relevant.
+- When the user shares a photo (movie poster, DVD/Blu-ray shelf, cinema marquee, or film still), identify every visible movie title and release year accurately, format each one as **Movie Title (Year)** so CineList can render instant Watchlist cards, and briefly note which ones best fit their taste.
 - Never recommend movies they have already watched unless they specifically ask about them.
 - Format every recommendation cleanly using bullet points:
   - **Movie Title (Year)** — *Genre / Vibe*: 1–2 concise sentences explaining why it matches specific titles in their watchlist.

@@ -340,109 +340,12 @@ class CommunityReviewCard extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              InkWell(
-                onTap: onToggleLike,
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isLiked
-                        ? AppColors.khakiBeige.withValues(alpha: 0.16)
-                        : AppColors.surfaceElevated,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isLiked
-                          ? AppColors.khakiBeige.withValues(alpha: 0.5)
-                          : AppColors.surfaceBorder,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isLiked
-                            ? Icons.thumb_up_rounded
-                            : Icons.thumb_up_outlined,
-                        size: 14,
-                        color: isLiked
-                            ? AppColors.khakiBeige
-                            : AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        review.likedBy.isEmpty
-                            ? 'Helpful'
-                            : 'Helpful (${review.likedBy.length})',
-                        style: TextStyle(
-                          color: isLiked
-                              ? AppColors.khakiBeige
-                              : AppColors.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              InkWell(
-                onTap: onToggleDislike,
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isDisliked
-                        ? AppColors.error.withValues(alpha: 0.16)
-                        : AppColors.surfaceElevated,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isDisliked
-                          ? AppColors.error.withValues(alpha: 0.5)
-                          : AppColors.surfaceBorder,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isDisliked
-                            ? Icons.thumb_down_rounded
-                            : Icons.thumb_down_outlined,
-                        size: 14,
-                        color: isDisliked
-                            ? AppColors.error
-                            : AppColors.textSecondary,
-                      ),
-                      if (review.dislikedBy.isNotEmpty) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          '${review.dislikedBy.length}',
-                          style: TextStyle(
-                            color: isDisliked
-                                ? AppColors.error
-                                : AppColors.textSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              if (onReply != null) ...[
-                const SizedBox(width: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
                 InkWell(
-                  onTap: onReply,
+                  onTap: onToggleLike,
                   borderRadius: BorderRadius.circular(20),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -450,25 +353,37 @@ class CommunityReviewCard extends StatelessWidget {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceElevated,
+                      color: isLiked
+                          ? AppColors.khakiBeige.withValues(alpha: 0.16)
+                          : AppColors.surfaceElevated,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.surfaceBorder),
+                      border: Border.all(
+                        color: isLiked
+                            ? AppColors.khakiBeige.withValues(alpha: 0.5)
+                            : AppColors.surfaceBorder,
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.chat_bubble_outline_rounded,
-                          size: 13.5,
-                          color: AppColors.textSecondary,
+                        Icon(
+                          isLiked
+                              ? Icons.thumb_up_rounded
+                              : Icons.thumb_up_outlined,
+                          size: 14,
+                          color: isLiked
+                              ? AppColors.khakiBeige
+                              : AppColors.textSecondary,
                         ),
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 6),
                         Text(
-                          review.replyCount > 0
-                              ? 'Replies (${review.replyCount})'
-                              : 'Reply',
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
+                          review.likedBy.isEmpty
+                              ? 'Likes'
+                              : 'Likes (${review.likedBy.length})',
+                          style: TextStyle(
+                            color: isLiked
+                                ? AppColors.khakiBeige
+                                : AppColors.textSecondary,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
@@ -477,31 +392,119 @@ class CommunityReviewCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: onToggleDislike,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isDisliked
+                          ? AppColors.error.withValues(alpha: 0.16)
+                          : AppColors.surfaceElevated,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isDisliked
+                            ? AppColors.error.withValues(alpha: 0.5)
+                            : AppColors.surfaceBorder,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isDisliked
+                              ? Icons.thumb_down_rounded
+                              : Icons.thumb_down_outlined,
+                          size: 14,
+                          color: isDisliked
+                              ? AppColors.error
+                              : AppColors.textSecondary,
+                        ),
+                        if (review.dislikedBy.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            '${review.dislikedBy.length}',
+                            style: TextStyle(
+                              color: isDisliked
+                                  ? AppColors.error
+                                  : AppColors.textSecondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                if (onReply != null) ...[
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: onReply,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceElevated,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.surfaceBorder),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.chat_bubble_outline_rounded,
+                            size: 13.5,
+                            color: AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            review.replyCount > 0
+                                ? 'Replies (${review.replyCount})'
+                                : 'Reply',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 8),
+                if (!isOwner && onReport != null)
+                  IconButton(
+                    onPressed: onReport,
+                    icon: const Icon(
+                      Icons.flag_outlined,
+                      size: 18,
+                      color: AppColors.textSecondary,
+                    ),
+                    tooltip: 'Report review',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                if (onShare != null)
+                  IconButton(
+                    onPressed: onShare,
+                    icon: const Icon(
+                      Icons.share_outlined,
+                      size: 18,
+                      color: AppColors.textSecondary,
+                    ),
+                    tooltip: 'Share review',
+                    visualDensity: VisualDensity.compact,
+                  ),
               ],
-              const Spacer(),
-              if (!isOwner && onReport != null)
-                IconButton(
-                  onPressed: onReport,
-                  icon: const Icon(
-                    Icons.flag_outlined,
-                    size: 18,
-                    color: AppColors.textSecondary,
-                  ),
-                  tooltip: 'Report review',
-                  visualDensity: VisualDensity.compact,
-                ),
-              if (onShare != null)
-                IconButton(
-                  onPressed: onShare,
-                  icon: const Icon(
-                    Icons.share_outlined,
-                    size: 18,
-                    color: AppColors.textSecondary,
-                  ),
-                  tooltip: 'Share review',
-                  visualDensity: VisualDensity.compact,
-                ),
-            ],
+            ),
           ),
         ],
       ),

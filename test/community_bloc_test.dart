@@ -6,6 +6,7 @@ import 'package:cine_list/features/community/data/models/community_poll_model.da
 import 'package:cine_list/features/community/data/models/curated_list_model.dart';
 import 'package:cine_list/features/community/data/models/movie_review_model.dart';
 import 'package:cine_list/features/community/data/models/review_report_model.dart';
+import 'package:cine_list/features/community/data/models/app_notification_model.dart';
 import 'package:cine_list/features/community/data/models/user_profile_model.dart';
 import 'package:cine_list/features/community/data/models/weekly_challenge_model.dart';
 import 'package:cine_list/features/community/data/repositories/community_repository.dart';
@@ -79,6 +80,15 @@ void main() {
         createdAt: DateTime(2026, 1, 1),
       ),
     );
+    registerFallbackValue(
+      AppNotificationModel(
+        id: 'n-fallback',
+        type: AppNotificationType.like,
+        actorUid: 'uid-1',
+        actorName: 'Yami',
+        createdAt: DateTime(2026, 1, 1),
+      ),
+    );
   });
 
   setUp(() {
@@ -86,6 +96,13 @@ void main() {
     when(() => repository.isAdmin(any())).thenAnswer((_) async => false);
     when(() => repository.isModerator(any())).thenAnswer((_) async => false);
     when(() => repository.isUserBanned(any())).thenAnswer((_) async => false);
+    when(
+      () => repository.createNotification(
+        recipientUid: any(named: 'recipientUid'),
+        notification: any(named: 'notification'),
+        deterministicId: any(named: 'deterministicId'),
+      ),
+    ).thenAnswer((_) async {});
   });
 
   group('CommunityBloc', () {
@@ -808,6 +825,42 @@ void main() {
           bloc.state.feedbackMessage,
           'Watch Party completed! +15 bonus rep earned.',
         );
+      },
+    );
+
+    blocTest<CommunityBloc, CommunityState>(
+      'CommunityNotificationsMarkedRead marks unread notifications read',
+      build: () {
+        final unread = AppNotificationModel(
+          id: 'n-1',
+          type: AppNotificationType.follow,
+          actorUid: 'uid-2',
+          actorName: 'Alex',
+          isRead: false,
+          createdAt: DateTime(2026, 11, 19),
+        );
+        when(() => repository.watchProfile('uid-1'))
+            .thenAnswer((_) => Stream.value(sampleProfile));
+        when(() => repository.watchRecentReviews())
+            .thenAnswer((_) => Stream.value(const []));
+        when(() => repository.watchNotifications('uid-1'))
+            .thenAnswer((_) => Stream.value([unread]));
+        when(() => repository.markAllNotificationsRead('uid-1'))
+            .thenAnswer((_) async {});
+        return CommunityBloc(repository);
+      },
+      act: (bloc) async {
+        bloc.add(
+          const CommunityUserBound(uid: 'uid-1', email: 'yami@cinelist.app'),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(bloc.state.unreadNotificationCount, 1);
+        bloc.add(const CommunityNotificationsMarkedRead());
+        await Future<void>.delayed(Duration.zero);
+      },
+      verify: (bloc) {
+        expect(bloc.state.unreadNotificationCount, 0);
+        verify(() => repository.markAllNotificationsRead('uid-1')).called(1);
       },
     );
   });

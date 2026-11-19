@@ -208,6 +208,19 @@ final class CommunityChallengeCompleted extends CommunityEvent {
   List<Object?> get props => [challengeId];
 }
 
+final class CommunityNotificationsMarkedRead extends CommunityEvent {
+  const CommunityNotificationsMarkedRead();
+}
+
+final class _CommunityNotificationsReceived extends CommunityEvent {
+  const _CommunityNotificationsReceived(this.notifications);
+
+  final List<AppNotificationModel> notifications;
+
+  @override
+  List<Object?> get props => [notifications];
+}
+
 final class _CommunityActiveChallengeReceived extends CommunityEvent {
   const _CommunityActiveChallengeReceived(this.challenge);
 

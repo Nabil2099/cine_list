@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/app_exception.dart';
+import '../models/app_notification_model.dart';
 import '../models/community_poll_model.dart';
 import '../models/curated_list_model.dart';
 import '../models/movie_review_model.dart';
@@ -23,6 +24,7 @@ class CommunityRepository {
   static const String listsCollection = 'community_lists';
   static const String challengesCollection = 'community_challenges';
   static const String commentsSubcollection = 'comments';
+  static const String notificationsSubcollection = 'notifications';
   static const String adminsCollection = 'admins';
   static const String moderatorsCollection = 'moderators';
   static const String bannedUsersCollection = 'banned_users';
@@ -606,6 +608,55 @@ class CommunityRepository {
 
   CollectionReference<Map<String, dynamic>> get _challengesRef {
     return _firestore.collection(challengesCollection);
+  }
+
+  CollectionReference<Map<String, dynamic>> _notificationsRef(String uid) {
+    return _profileRef(uid).collection(notificationsSubcollection);
+  }
+
+  Stream<List<AppNotificationModel>> watchNotifications(
+    String uid, {
+    int limit = 50,
+  }) {
+    return _notificationsRef(uid)
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map((doc) => AppNotificationModel.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
+  }
+
+  Future<void> createNotification({
+    required String recipientUid,
+    required AppNotificationModel notification,
+    String? deterministicId,
+  }) async {
+    if (recipientUid.isEmpty || recipientUid == notification.actorUid) return;
+    try {
+      final ref = deterministicId != null
+          ? _notificationsRef(recipientUid).doc(deterministicId)
+          : _notificationsRef(recipientUid).doc();
+      await ref.set(notification.toFirestoreMap());
+    } catch (_) {
+      // Notifications are best-effort so they never block primary actions.
+    }
+  }
+
+  Future<void> markAllNotificationsRead(String uid) async {
+    try {
+      final unread = await _notificationsRef(uid)
+          .where('isRead', isEqualTo: false)
+          .get();
+      if (unread.docs.isEmpty) return;
+      final batch = _firestore.batch();
+      for (final doc in unread.docs) {
+        batch.update(doc.reference, {'isRead': true});
+      }
+      await batch.commit();
+    } catch (_) {}
   }
 
   Stream<List<ReviewCommentModel>> watchReviewComments(String reviewId) {

@@ -7,6 +7,7 @@ import '../../../../core/error/app_exception.dart';
 import '../../../../core/utils/bloc_transformers.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../shared/models/movie_summary.dart';
+import '../../data/models/app_notification_model.dart';
 import '../../data/models/community_poll_model.dart';
 import '../../data/models/curated_list_model.dart';
 import '../../data/models/movie_review_model.dart';
@@ -52,6 +53,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     on<CommunityCuratedListLikeToggled>(_onCuratedListLikeToggled);
     on<CommunityCuratedListDeleted>(_onCuratedListDeleted);
     on<CommunityChallengeCompleted>(_onChallengeCompleted);
+    on<CommunityNotificationsMarkedRead>(_onNotificationsMarkedRead);
 
     on<_CommunityProfileReceived>(_onProfileReceived);
     on<_CommunityAllUsersReceived>(_onAllUsersReceived);
@@ -63,6 +65,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     on<_CommunityPinnedPollReceived>(_onPinnedPollReceived);
     on<_CommunityActiveChallengeReceived>(_onActiveChallengeReceived);
     on<_CommunityCuratedListsReceived>(_onCuratedListsReceived);
+    on<_CommunityNotificationsReceived>(_onNotificationsReceived);
   }
 
   static const Duration reactionCooldown = Duration(seconds: 5);
@@ -77,6 +80,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
   StreamSubscription<CommunityPollModel?>? _pollSub;
   StreamSubscription<WeeklyChallengeModel?>? _challengeSub;
   StreamSubscription<List<CuratedListModel>>? _listsSub;
+  StreamSubscription<List<AppNotificationModel>>? _notificationsSub;
   String? _currentUid;
   String? _fallbackName;
   DateTime? _lastReactionAt;
@@ -113,6 +117,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     _pollSub?.cancel();
     _challengeSub?.cancel();
     _listsSub?.cancel();
+    _notificationsSub?.cancel();
     _profileSub = null;
     _reviewsSub = null;
     _allUsersSub = null;
@@ -121,6 +126,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     _pollSub = null;
     _challengeSub = null;
     _listsSub = null;
+    _notificationsSub = null;
     _lastReactionAt = null;
     _pendingReactionIds.clear();
     _currentUid = event.uid;
@@ -166,6 +172,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     _pollSub?.cancel();
     _challengeSub?.cancel();
     _listsSub?.cancel();
+    _notificationsSub?.cancel();
     _profileSub = null;
     _reviewsSub = null;
     _allUsersSub = null;
@@ -174,6 +181,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     _pollSub = null;
     _challengeSub = null;
     _listsSub = null;
+    _notificationsSub = null;
   }
 
   void _startUserStreams(String uid) {
@@ -214,6 +222,12 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     try {
       _listsSub = _repository.watchCuratedLists().listen((lists) {
         if (!isClosed) add(_CommunityCuratedListsReceived(lists));
+      }, onError: (_) {});
+    } catch (_) {}
+
+    try {
+      _notificationsSub = _repository.watchNotifications(uid).listen((items) {
+        if (!isClosed) add(_CommunityNotificationsReceived(items));
       }, onError: (_) {});
     } catch (_) {}
 
@@ -414,6 +428,22 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
         targetUid: event.targetUid,
         currentlyFollowing: currentlyFollowing,
       );
+      if (!currentlyFollowing) {
+        final actorName =
+            currentProfile?.displayName ?? _fallbackName ?? 'Movie Fan';
+        await _repository.createNotification(
+          recipientUid: event.targetUid,
+          deterministicId: 'follow_$uid',
+          notification: AppNotificationModel(
+            id: '',
+            type: AppNotificationType.follow,
+            actorUid: uid,
+            actorName: actorName,
+            actorAvatarKey: currentProfile?.avatarKey ?? 'cinema',
+            createdAt: DateTime.now(),
+          ),
+        );
+      }
     } on AppException catch (e) {
       emit(state.copyWith(errorMessage: e.message));
     }
@@ -562,6 +592,25 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
           uid: uid,
           currentlyLiked: wasLiked,
         );
+        if (!wasLiked && review.uid != uid) {
+          final actorName =
+              state.profile?.displayName ?? _fallbackName ?? 'Movie Fan';
+          await _repository.createNotification(
+            recipientUid: review.uid,
+            deterministicId: 'like_${review.id}_$uid',
+            notification: AppNotificationModel(
+              id: '',
+              type: AppNotificationType.like,
+              actorUid: uid,
+              actorName: actorName,
+              actorAvatarKey: state.profile?.avatarKey ?? 'cinema',
+              movieId: review.movieId,
+              movieTitle: review.movieTitle,
+              reviewId: review.id,
+              createdAt: DateTime.now(),
+            ),
+          );
+        }
       } else {
         await _repository.toggleReviewDislike(
           reviewId: review.id,
@@ -790,6 +839,23 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
         uid: uid,
         currentlyLiked: wasLiked,
       );
+      if (!wasLiked && list.authorUid != uid) {
+        final actorName =
+            state.profile?.displayName ?? _fallbackName ?? 'Movie Fan';
+        await _repository.createNotification(
+          recipientUid: list.authorUid,
+          deterministicId: 'listlike_${list.id}_$uid',
+          notification: AppNotificationModel(
+            id: '',
+            type: AppNotificationType.like,
+            actorUid: uid,
+            actorName: actorName,
+            actorAvatarKey: state.profile?.avatarKey ?? 'cinema',
+            snippet: list.title,
+            createdAt: DateTime.now(),
+          ),
+        );
+      }
     } on AppException catch (e) {
       if (!isClosed) {
         emit(state.copyWith(curatedLists: prevLists, errorMessage: e.message));
@@ -880,6 +946,26 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     }
   }
 
+  void _onNotificationsReceived(
+    _CommunityNotificationsReceived event,
+    Emitter<CommunityState> emit,
+  ) {
+    emit(state.copyWith(notifications: event.notifications));
+  }
+
+  Future<void> _onNotificationsMarkedRead(
+    CommunityNotificationsMarkedRead event,
+    Emitter<CommunityState> emit,
+  ) async {
+    final uid = _currentUid;
+    if (uid == null || state.unreadNotificationCount == 0) return;
+    final marked = state.notifications
+        .map((n) => n.isRead ? n : n.copyWith(isRead: true))
+        .toList();
+    emit(state.copyWith(notifications: marked));
+    await _repository.markAllNotificationsRead(uid);
+  }
+
   @override
   Future<void> close() {
     _profileSub?.cancel();
@@ -890,6 +976,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     _pollSub?.cancel();
     _challengeSub?.cancel();
     _listsSub?.cancel();
+    _notificationsSub?.cancel();
     return super.close();
   }
 }

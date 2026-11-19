@@ -1,6 +1,10 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -33,6 +37,9 @@ class AiChatScreen extends StatefulWidget {
 class _AiChatScreenState extends State<AiChatScreen> {
   final _inputController = TextEditingController();
   final _scrollController = ScrollController();
+  String? _pendingImageBase64;
+  String? _pendingImageMimeType;
+  bool _pickingImage = false;
 
   static const _quickPrompts = [
     'Recommend 5 movies based on my watchlist',
@@ -77,12 +84,126 @@ class _AiChatScreenState extends State<AiChatScreen> {
     super.dispose();
   }
 
+  Future<void> _pickImage(ImageSource source) async {
+    if (_pickingImage) return;
+    setState(() => _pickingImage = true);
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 78,
+      );
+      if (picked != null && mounted) {
+        final bytes = await picked.readAsBytes();
+        if (bytes.lengthInBytes > 1500000) {
+          if (mounted) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                const SnackBar(
+                  content: Text('Please choose a smaller image (under 1.5 MB).'),
+                ),
+              );
+          }
+          return;
+        }
+        final ext = picked.name.toLowerCase();
+        final mime = ext.endsWith('.png')
+            ? 'image/png'
+            : ext.endsWith('.webp')
+            ? 'image/webp'
+            : 'image/jpeg';
+        setState(() {
+          _pendingImageBase64 = base64Encode(bytes);
+          _pendingImageMimeType = mime;
+        });
+      }
+    } on MissingPluginException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Image picker requires a full app rebuild (stop & run flutter run).',
+            ),
+          ),
+        );
+      }
+    } on PlatformException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message ?? 'Could not access camera or gallery.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _pickingImage = false);
+    }
+  }
+
+  Future<void> _showImageSourcePicker() async {
+    if (kIsWeb) {
+      await _pickImage(ImageSource.gallery);
+      return;
+    }
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(
+                Icons.camera_alt_rounded,
+                color: AppColors.pacificBlue,
+              ),
+              title: const Text(
+                'Take Photo of Poster / Shelf',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
+              onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_library_rounded,
+                color: AppColors.khakiBeige,
+              ),
+              title: const Text(
+                'Choose from Gallery',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
+              onTap: () => Navigator.of(sheetContext).pop(ImageSource.gallery),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (source != null && mounted) {
+      await _pickImage(source);
+    }
+  }
+
   void _send([String? overrideText]) {
     final text = (overrideText ?? _inputController.text).trim();
-    if (text.isEmpty) return;
+    final imageBase64 = overrideText == null ? _pendingImageBase64 : null;
+    final imageMime = overrideText == null ? _pendingImageMimeType : null;
+    if (text.isEmpty && (imageBase64 == null || imageBase64.isEmpty)) return;
 
     if (overrideText == null) {
       _inputController.clear();
+      if (_pendingImageBase64 != null) {
+        setState(() {
+          _pendingImageBase64 = null;
+          _pendingImageMimeType = null;
+        });
+      }
     }
 
     final watchlistState = context.read<WatchlistCubit>().state;
@@ -102,7 +223,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
       followedReviews: followedReviews,
     );
 
-    context.read<AiChatCubit>().sendMessage(text, context: aiContext);
+    context.read<AiChatCubit>().sendMessage(
+      text,
+      context: aiContext,
+      imageBase64: imageBase64,
+      imageMimeType: imageMime,
+    );
     _scrollToBottom();
   }
 
@@ -174,9 +300,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   },
                 ),
               ),
+              if (_pendingImageBase64 != null)
+                _PendingImageBar(
+                  imageBase64: _pendingImageBase64!,
+                  onRemove: () => setState(() {
+                    _pendingImageBase64 = null;
+                    _pendingImageMimeType = null;
+                  }),
+                ),
               _ChatInputBar(
                 controller: _inputController,
                 onSend: () => _send(),
+                onPickImage: _showImageSourcePicker,
+                hasPendingImage: _pendingImageBase64 != null,
               ),
             ],
           ),
@@ -499,6 +635,19 @@ class _ChatBubble extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                 ],
+                if (message.hasImage) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.memory(
+                      base64Decode(message.imageBase64!),
+                      width: 180,
+                      height: 180,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 FormattedChatText(
                   text: message.text,
                   baseColor: isUser ? AppColors.black : AppColors.textPrimary,
@@ -556,11 +705,87 @@ class _TypingBubble extends StatelessWidget {
   }
 }
 
+class _PendingImageBar extends StatelessWidget {
+  const _PendingImageBar({
+    required this.imageBase64,
+    required this.onRemove,
+  });
+
+  final String imageBase64;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      color: AppColors.surfaceElevated,
+      child: Row(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.memory(
+                  base64Decode(imageBase64),
+                  width: 54,
+                  height: 54,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const SizedBox(
+                    width: 54,
+                    height: 54,
+                    child: Icon(Icons.broken_image_outlined),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: -6,
+                right: -6,
+                child: InkWell(
+                  onTap: onRemove,
+                  borderRadius: BorderRadius.circular(999),
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      color: AppColors.error,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 13,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Photo attached — add a question or tap Send to identify movies.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ChatInputBar extends StatelessWidget {
-  const _ChatInputBar({required this.controller, required this.onSend});
+  const _ChatInputBar({
+    required this.controller,
+    required this.onSend,
+    required this.onPickImage,
+    this.hasPendingImage = false,
+  });
 
   final TextEditingController controller;
   final VoidCallback onSend;
+  final VoidCallback onPickImage;
+  final bool hasPendingImage;
 
   @override
   Widget build(BuildContext context) {
@@ -569,7 +794,7 @@ class _ChatInputBar extends StatelessWidget {
     );
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      padding: const EdgeInsets.fromLTRB(12, 10, 14, 12),
       decoration: const BoxDecoration(
         color: AppColors.surfaceElevated,
         border: Border(
@@ -578,6 +803,17 @@ class _ChatInputBar extends StatelessWidget {
       ),
       child: Row(
         children: [
+          IconButton(
+            onPressed: isSending ? null : onPickImage,
+            tooltip: 'Scan movie poster or shelf',
+            icon: Icon(
+              Icons.add_a_photo_outlined,
+              color: hasPendingImage
+                  ? AppColors.khakiBeige
+                  : AppColors.textSecondary,
+              size: 22,
+            ),
+          ),
           Expanded(
             child: TextField(
               controller: controller,
@@ -591,7 +827,9 @@ class _ChatInputBar extends StatelessWidget {
                 fontSize: 14.5,
               ),
               decoration: InputDecoration(
-                hintText: 'Ask CineList AI for movie picks...',
+                hintText: hasPendingImage
+                    ? 'Ask about this photo (optional)...'
+                    : 'Ask CineList AI or snap a poster...',
                 filled: true,
                 fillColor: AppColors.surfaceInput,
                 contentPadding: const EdgeInsets.symmetric(

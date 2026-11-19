@@ -143,9 +143,43 @@ void main() {
         text: 'Test reply',
         isUser: false,
         timestamp: DateTime(2026, 5, 10, 14, 30),
+        imageBase64: 'YWJjMTIz',
+        imageMimeType: 'image/jpeg',
       );
       final restored = ChatMessageModel.fromMap(msg.toMap());
       expect(restored, msg);
+      expect(restored.hasImage, isTrue);
     });
+
+    blocTest<AiChatCubit, AiChatState>(
+      'sendMessage with image-only uses default vision prompt and attaches base64',
+      build: () {
+        when(
+          () => repository.streamMessage(
+            history: any(named: 'history'),
+            context: aiContext,
+          ),
+        ).thenAnswer(
+          (_) => Stream.value('I spotted **Blade Runner 2049 (2017)**!'),
+        );
+        return AiChatCubit(
+          repository,
+          preferencesService: preferencesService,
+        );
+      },
+      act: (cubit) => cubit.sendMessage(
+        '',
+        context: aiContext,
+        imageBase64: 'aW1hZ2VkYXRh',
+        imageMimeType: 'image/png',
+      ),
+      verify: (cubit) {
+        expect(cubit.state.messages, hasLength(2));
+        expect(cubit.state.messages.first.text, AiChatCubit.defaultImagePrompt);
+        expect(cubit.state.messages.first.imageBase64, 'aW1hZ2VkYXRh');
+        expect(cubit.state.messages.first.imageMimeType, 'image/png');
+        expect(cubit.state.messages.last.text, contains('Blade Runner 2049'));
+      },
+    );
   });
 }

@@ -12,6 +12,7 @@ import '../../features/auth/presentation/screens/auth_screen.dart';
 import '../../features/auth/presentation/screens/verify_email_screen.dart';
 import '../../features/community/presentation/screens/community_screen.dart';
 import '../../features/community/presentation/screens/following_feed_screen.dart';
+import '../../features/community/presentation/screens/notifications_screen.dart';
 import '../../features/discover/presentation/bloc/discover_bloc.dart';
 import '../../features/discover/presentation/screens/discover_screen.dart';
 import '../../features/landing/presentation/screens/web_landing_screen.dart';
@@ -196,6 +197,10 @@ class AppRouter {
       GoRoute(
         path: '/stats',
         builder: (context, state) => const CinemaStatsScreen(),
+      ),
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationsScreen(),
       ),
       GoRoute(path: '/admin', builder: (context, state) => const AdminScreen()),
       GoRoute(

@@ -23,12 +23,20 @@ class AiChatCubit extends Cubit<AiChatState> {
   final PreferencesService? _preferencesService;
   StreamSubscription<String>? _streamSub;
 
+  static const String defaultImagePrompt =
+      'Identify the movie(s) in this photo and tell me which ones match my watchlist.';
+
   Future<void> sendMessage(
     String rawText, {
     AiChatContext context = const AiChatContext(),
+    String? imageBase64,
+    String? imageMimeType,
   }) async {
-    final text = rawText.trim();
-    if (text.isEmpty || state.isSending) return;
+    final hasImage = imageBase64 != null && imageBase64.isNotEmpty;
+    final trimmed = rawText.trim();
+    if ((trimmed.isEmpty && !hasImage) || state.isSending) return;
+
+    final text = trimmed.isNotEmpty ? trimmed : defaultImagePrompt;
 
     await _streamSub?.cancel();
 
@@ -38,6 +46,8 @@ class AiChatCubit extends Cubit<AiChatState> {
       text: text,
       isUser: true,
       timestamp: now,
+      imageBase64: hasImage ? imageBase64 : null,
+      imageMimeType: hasImage ? (imageMimeType ?? 'image/jpeg') : null,
     );
     final aiId = 'ai-${now.microsecondsSinceEpoch + 1}';
     final placeholderAi = ChatMessageModel(

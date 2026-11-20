@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/app_exception.dart';
@@ -12,6 +14,8 @@ class AuthRepository {
 
   final FirebaseAuth _firebaseAuth;
   final FirebaseFirestore _firestore;
+
+  GoogleSignIn get _resolvedGoogleSignIn => GoogleSignIn();
 
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
 
@@ -37,6 +41,64 @@ class AuthRepository {
       if (e is AuthException) rethrow;
       throw const AuthException(
         'Unexpected error during sign in. Please try again.',
+      );
+    }
+  }
+
+  Future<User> signInWithGoogle() async {
+    try {
+      final UserCredential credential;
+      if (kIsWeb) {
+        final provider = GoogleAuthProvider()
+          ..setCustomParameters({'prompt': 'select_account'});
+        credential = await _firebaseAuth.signInWithPopup(provider);
+      } else {
+        final googleSignIn = _resolvedGoogleSignIn;
+        final googleUser = await googleSignIn.signIn();
+        if (googleUser == null) {
+          throw const AuthException('Google sign-in was canceled.');
+        }
+        final googleAuth = await googleUser.authentication;
+        final oauthCredential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+        credential = await _firebaseAuth.signInWithCredential(oauthCredential);
+      }
+
+      final user = credential.user;
+      if (user == null) {
+        throw const AuthException(
+          'Unable to sign in with Google. Please try again.',
+        );
+      }
+
+      try {
+        final userDoc = _firestore
+            .collection(AppConstants.usersCollection)
+            .doc(user.uid);
+        final snap = await userDoc.get();
+        if (!snap.exists) {
+          final rawName = user.displayName?.trim() ?? '';
+          final safeName = rawName.isEmpty
+              ? 'Movie Fan'
+              : (rawName.length > 40 ? rawName.substring(0, 40) : rawName);
+          await userDoc.set({
+            'displayName': safeName,
+            'bio': '',
+            'avatarKey': 'cinema',
+            'updatedAt': Timestamp.fromDate(DateTime.now()),
+          }, SetOptions(merge: true));
+        }
+      } catch (_) {}
+
+      return user;
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_mapFirebaseAuthError(e), code: e.code);
+    } catch (e) {
+      if (e is AuthException) rethrow;
+      throw const AuthException(
+        'Google sign-in was canceled or failed. Please try again.',
       );
     }
   }
@@ -130,6 +192,11 @@ class AuthRepository {
   }
 
   Future<void> signOut() async {
+    if (!kIsWeb) {
+      try {
+        await _resolvedGoogleSignIn.signOut();
+      } catch (_) {}
+    }
     await _firebaseAuth.signOut();
   }
 
@@ -148,7 +215,15 @@ class AuthRepository {
       case 'weak-password':
         return 'Password is too weak. Use at least 6 characters.';
       case 'operation-not-allowed':
-        return 'Email/password sign-in is not enabled in Firebase Console.';
+        return 'This sign-in method is not enabled in Firebase Console.';
+      case 'account-exists-with-different-credential':
+        return 'An account already exists with this email using a different sign-in method.';
+      case 'popup-closed-by-user':
+      case 'cancelled-popup-request':
+      case 'web-context-canceled':
+        return 'Google sign-in was canceled.';
+      case 'popup-blocked':
+        return 'Sign-in popup was blocked by your browser. Please allow popups and try again.';
       case 'too-many-requests':
         return 'Too many attempts. Please wait a moment and try again.';
       case 'network-request-failed':

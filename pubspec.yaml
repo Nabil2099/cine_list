@@ -2,7 +2,7 @@ name: cine_list
 description: "CineList – discover movies, build your watchlist, get AI picks, and share reviews with a community of film lovers."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
@@ -50,6 +50,7 @@ dependencies:
   share_plus: ^13.3.1
   go_router: ^18.1.4
   image_picker: ^1.1.2
+  google_sign_in: ^6.2.2
 
 dev_dependencies:
   flutter_test:
@@ -83,7 +84,6 @@ flutter_launcher_icons:
 
 # The following section is specific to Flutter packages.
 flutter:
-
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
@@ -92,6 +92,8 @@ flutter:
   assets:
     - .env
     - assets/images/app_icon.png
+    - assets/icons/
+    - assets/images/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

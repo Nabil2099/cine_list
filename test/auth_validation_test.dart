@@ -59,11 +59,13 @@ void main() {
       when(() => unverifiedUser.email).thenReturn('yami@cinelist.app');
       when(() => unverifiedUser.displayName).thenReturn('Yami');
       when(() => unverifiedUser.emailVerified).thenReturn(false);
+      when(() => unverifiedUser.providerData).thenReturn(const []);
 
       when(() => verifiedUser.uid).thenReturn('uid-1');
       when(() => verifiedUser.email).thenReturn('yami@cinelist.app');
       when(() => verifiedUser.displayName).thenReturn('Yami');
       when(() => verifiedUser.emailVerified).thenReturn(true);
+      when(() => verifiedUser.providerData).thenReturn(const []);
 
       when(() => repository.authStateChanges)
           .thenAnswer((_) => authController.stream);
@@ -108,6 +110,21 @@ void main() {
           cubit.state.infoMessage,
           'Verification link resent to yami@cinelist.app.',
         );
+      },
+    );
+
+    blocTest<AuthCubit, AuthState>(
+      'signInWithGoogle authenticates user via AuthRepository',
+      build: () {
+        when(() => repository.signInWithGoogle())
+            .thenAnswer((_) async => verifiedUser);
+        return AuthCubit(repository);
+      },
+      act: (cubit) => cubit.signInWithGoogle(),
+      verify: (cubit) {
+        verify(() => repository.signInWithGoogle()).called(1);
+        expect(cubit.state.status, AuthStatus.authenticated);
+        expect(cubit.state.user, verifiedUser);
       },
     );
   });

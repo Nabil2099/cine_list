@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -17,14 +19,22 @@ class VerifyEmailScreen extends StatefulWidget {
 
 class _VerifyEmailScreenState extends State<VerifyEmailScreen>
     with WidgetsBindingObserver {
+  Timer? _pollTimer;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted) {
+        context.read<AuthCubit>().checkEmailVerification(silent: true);
+      }
+    });
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

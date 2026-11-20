@@ -67,7 +67,10 @@ class AuthCubit extends Cubit<AuthState> {
 
   AuthStatus _statusForUser(User? user) {
     if (user == null) return AuthStatus.unauthenticated;
-    return user.emailVerified
+    final isGoogleUser = user.providerData.any(
+      (p) => p.providerId == 'google.com',
+    );
+    return (user.emailVerified || isGoogleUser)
         ? AuthStatus.authenticated
         : AuthStatus.unverified;
   }
@@ -143,6 +146,30 @@ class AuthCubit extends Cubit<AuthState> {
         state.copyWith(
           isLoading: false,
           errorMessage: 'Authentication failed. Please try again.',
+        ),
+      );
+    }
+  }
+
+  Future<void> signInWithGoogle() async {
+    emit(state.copyWith(isLoading: true, clearError: true, clearInfo: true));
+    try {
+      final user = await _authRepository.signInWithGoogle();
+      emit(
+        state.copyWith(
+          status: _statusForUser(user),
+          user: user,
+          isLoading: false,
+          clearError: true,
+        ),
+      );
+    } on AppException catch (e) {
+      emit(state.copyWith(isLoading: false, errorMessage: e.message));
+    } catch (_) {
+      emit(
+        state.copyWith(
+          isLoading: false,
+          errorMessage: 'Google sign-in failed. Please try again.',
         ),
       );
     }

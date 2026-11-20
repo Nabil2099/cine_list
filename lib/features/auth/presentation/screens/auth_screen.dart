@@ -1,3 +1,4 @@
+import 'package:cine_list/features/auth/presentation/widgets/google_sign_in_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -330,6 +331,46 @@ class _AuthScreenState extends State<AuthScreen> {
                                       : 'Log In',
                                   isLoading: state.isLoading,
                                   onPressed: _onSubmit,
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    const Expanded(
+                                      child: Divider(
+                                        color: AppColors.surfaceBorder,
+                                        thickness: 1,
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                      ),
+                                      child: Text(
+                                        'OR',
+                                        style: TextStyle(
+                                          color: AppColors.textMuted.withValues(
+                                            alpha: 0.85,
+                                          ),
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 1.1,
+                                        ),
+                                      ),
+                                    ),
+                                    const Expanded(
+                                      child: Divider(
+                                        color: AppColors.surfaceBorder,
+                                        thickness: 1,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                GoogleSignInButton(
+                                  isLoading: state.isLoading,
+                                  onPressed: () => context
+                                      .read<AuthCubit>()
+                                      .signInWithGoogle(),
                                 ),
                                 const SizedBox(height: 22),
                                 Row(

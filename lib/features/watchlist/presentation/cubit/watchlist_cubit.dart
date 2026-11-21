@@ -210,6 +210,62 @@ class WatchlistCubit extends Cubit<WatchlistState> {
     }
   }
 
+  /// Marks [movie] as Watched (creating the watchlist entry directly if unsaved)
+  /// and optionally updates its personal rating, note, and runtime.
+  Future<void> logWatchedMovie(
+    MovieSummary movie, {
+    int? runtimeMinutes,
+    int? userRating,
+    String? userNote,
+    bool updateReviewFields = false,
+  }) async {
+    final uid = _currentUid;
+    if (uid == null) {
+      emit(
+        state.copyWith(errorMessage: 'Please sign in to log watched movies.'),
+      );
+      return;
+    }
+
+    _setMutating(movie.id, true);
+    try {
+      final existing = state.findById(movie.id);
+      if (existing == null) {
+        final item = WatchlistMovieModel.fromMovieSummary(
+          movie,
+          status: WatchlistFilterStatus.watched,
+          watchedAt: DateTime.now(),
+          runtimeMinutes: runtimeMinutes,
+          userRating: userRating,
+          userNote: userNote?.trim().isNotEmpty == true
+              ? userNote!.trim()
+              : null,
+        );
+        await _repository.saveMovie(uid, item);
+      } else {
+        await _repository.markWatchedWithReview(
+          uid: uid,
+          movieId: movie.id,
+          userRating: updateReviewFields ? userRating : existing.userRating,
+          userNote: updateReviewFields ? userNote : existing.userNote,
+          runtimeMinutes: runtimeMinutes ?? existing.runtimeMinutes,
+        );
+      }
+      emit(
+        state.copyWith(
+          feedbackMessage: updateReviewFields
+              ? 'Saved rating & review for "${movie.title}".'
+              : 'Marked "${movie.title}" as Watched.',
+          clearError: true,
+        ),
+      );
+    } on AppException catch (e) {
+      emit(state.copyWith(errorMessage: e.message));
+    } finally {
+      _setMutating(movie.id, false);
+    }
+  }
+
   Future<void> updateReview({
     required int movieId,
     required String title,

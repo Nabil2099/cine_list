@@ -145,6 +145,19 @@ class _CineListAppState extends State<CineListApp> {
           debugShowCheckedModeBanner: false,
           theme: AppTheme.darkTheme,
           routerConfig: _appRouter.router,
+          builder: (context, child) {
+            final mediaQuery = MediaQuery.of(context);
+            final isMobile = mediaQuery.size.width < 600;
+            if (!isMobile || child == null) {
+              return child ?? const SizedBox.shrink();
+            }
+            final currentScale = mediaQuery.textScaler.scale(1.0);
+            final scaled = (currentScale * 0.90).clamp(0.85, 1.15);
+            return MediaQuery(
+              data: mediaQuery.copyWith(textScaler: TextScaler.linear(scaled)),
+              child: child,
+            );
+          },
         ),
       ),
     );

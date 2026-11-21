@@ -50,8 +50,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   int _gridColumnsForWidth(double width) {
-    if (width >= AppConstants.desktopBreakpoint) return 4;
-    if (width >= AppConstants.tabletBreakpoint) return 3;
+    if (width >= AppConstants.desktopBreakpoint) return 5;
+    if (width >= AppConstants.tabletBreakpoint) return 4;
+    if (width >= 360) return 3;
     return 2;
   }
 
@@ -73,9 +74,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         ? authDisplayName.trim()
         : Formatters.greetingName(userEmail);
 
-    final isWideWeb =
-        kIsWeb &&
-        MediaQuery.sizeOf(context).width >= AppConstants.tabletBreakpoint;
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final isWideWeb = kIsWeb && viewportWidth >= AppConstants.tabletBreakpoint;
+    final horizontalPad = viewportWidth >= AppConstants.tabletBreakpoint
+        ? 20.0
+        : 14.0;
 
     return Scaffold(
       backgroundColor: AppColors.black,
@@ -100,7 +103,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalPad,
+                      12,
+                      horizontalPad,
+                      0,
+                    ),
                     sliver: SliverToBoxAdapter(
                       child: _DiscoverHeader(
                         greetingName: greetingName,
@@ -111,7 +119,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     ),
                   ),
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalPad,
+                      14,
+                      horizontalPad,
+                      0,
+                    ),
                     sliver: SliverToBoxAdapter(
                       child: BlocBuilder<DiscoverBloc, DiscoverState>(
                         buildWhen: (prev, curr) =>
@@ -417,23 +430,21 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
         ? movies.skip(7).toList()
         : movies;
 
+    final isWide =
+        MediaQuery.sizeOf(context).width >= AppConstants.tabletBreakpoint;
+    final horizontalPad = isWide ? 20.0 : 14.0;
+
     return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+      padding: EdgeInsets.fromLTRB(horizontalPad, 16, horizontalPad, 28),
       sliver: SliverList(
         delegate: SliverChildListDelegate([
           if (featuredMovie != null) ...[
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide =
-                    constraints.maxWidth >= AppConstants.tabletBreakpoint;
-                return FeaturedMovieCard(
-                  movie: featuredMovie,
-                  height: isWide ? 270 : 205,
-                  onTap: () => onMovieTap(featuredMovie),
-                );
-              },
+            FeaturedMovieCard(
+              movie: featuredMovie,
+              height: isWide ? 270 : 176,
+              onTap: () => onMovieTap(featuredMovie),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: isWide ? 24 : 18),
           ],
           if (carouselMovies.isNotEmpty) ...[
             Row(
@@ -449,20 +460,21 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             SizedBox(
-              height: 235,
+              height: isWide ? 235 : 196,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: carouselMovies.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 14),
+                separatorBuilder: (_, _) =>
+                    SizedBox(width: isWide ? 14 : 10),
                 itemBuilder: (context, index) {
                   final movie = carouselMovies[index];
                   final heroTag = 'discover-carousel-${movie.id}';
                   final isSaved = savedIds.contains(movie.id);
                   return MovieCard(
                     movie: movie,
-                    width: 132,
+                    width: isWide ? 132 : 108,
                     heroTag: heroTag,
                     isSaved: isSaved,
                     onToggleSave: () =>
@@ -472,7 +484,7 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
                 },
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: isWide ? 24 : 18),
           ],
           if (gridMovies.isNotEmpty) ...[
             Text(
@@ -481,7 +493,7 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
                   : 'Explore More',
               style: Theme.of(context).textTheme.titleLarge,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             LayoutBuilder(
               builder: (context, constraints) {
                 final crossAxisCount = gridColumnsForWidth(
@@ -493,9 +505,9 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
                   itemCount: gridMovies.length,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: crossAxisCount,
-                    crossAxisSpacing: 14,
-                    mainAxisSpacing: 18,
-                    childAspectRatio: 0.57,
+                    crossAxisSpacing: isWide ? 14 : 10,
+                    mainAxisSpacing: isWide ? 18 : 14,
+                    childAspectRatio: isWide ? 0.57 : 0.55,
                   ),
                   itemBuilder: (context, index) {
                     final movie = gridMovies[index];

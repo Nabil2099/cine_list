@@ -256,5 +256,86 @@ void main() {
         );
       },
     );
+
+    blocTest<WatchlistCubit, WatchlistState>(
+      'logWatchedMovie saves unsaved movie directly as Watched with rating & note',
+      build: () {
+        when(() => repository.watchWatchlist('uid-123'))
+            .thenAnswer((_) => Stream.value(const []));
+        when(() => repository.saveMovie('uid-123', any()))
+            .thenAnswer((_) async {});
+        return WatchlistCubit(repository);
+      },
+      act: (cubit) async {
+        cubit.bindUser('uid-123');
+        await Future<void>.delayed(Duration.zero);
+        await cubit.logWatchedMovie(
+          const MovieSummary(id: 157336, title: 'Interstellar'),
+          runtimeMinutes: 169,
+          userRating: 5,
+          userNote: 'Incredible score.',
+          updateReviewFields: true,
+        );
+      },
+      verify: (cubit) {
+        final captured =
+            verify(() => repository.saveMovie('uid-123', captureAny()))
+                .captured
+                .single as WatchlistMovieModel;
+        expect(captured.movieId, 157336);
+        expect(captured.status, WatchlistFilterStatus.watched);
+        expect(captured.userRating, 5);
+        expect(captured.userNote, 'Incredible score.');
+        expect(captured.runtimeMinutes, 169);
+        expect(
+          cubit.state.feedbackMessage,
+          'Saved rating & review for "Interstellar".',
+        );
+      },
+    );
+
+    blocTest<WatchlistCubit, WatchlistState>(
+      'logWatchedMovie updates existing saved movie via markWatchedWithReview',
+      build: () {
+        when(() => repository.watchWatchlist('uid-123'))
+            .thenAnswer((_) => Stream.value([savedItem]));
+        when(
+          () => repository.markWatchedWithReview(
+            uid: 'uid-123',
+            movieId: 157336,
+            userRating: 4,
+            userNote: 'Worth the wait',
+            runtimeMinutes: 169,
+          ),
+        ).thenAnswer((_) async {});
+        return WatchlistCubit(repository);
+      },
+      act: (cubit) async {
+        cubit.bindUser('uid-123');
+        await Future<void>.delayed(Duration.zero);
+        await cubit.logWatchedMovie(
+          const MovieSummary(id: 157336, title: 'Interstellar'),
+          runtimeMinutes: 169,
+          userRating: 4,
+          userNote: 'Worth the wait',
+          updateReviewFields: true,
+        );
+      },
+      verify: (cubit) {
+        verify(
+          () => repository.markWatchedWithReview(
+            uid: 'uid-123',
+            movieId: 157336,
+            userRating: 4,
+            userNote: 'Worth the wait',
+            runtimeMinutes: 169,
+          ),
+        ).called(1);
+        expect(
+          cubit.state.feedbackMessage,
+          'Saved rating & review for "Interstellar".',
+        );
+      },
+    );
   });
 }

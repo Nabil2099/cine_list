@@ -20,14 +20,13 @@ import '../../../ai_chat/data/repositories/ai_chat_repository.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../community/data/models/movie_review_model.dart';
 import '../../../community/presentation/bloc/community_bloc.dart';
+import '../../../community/presentation/screens/rate_review_screen.dart';
 import '../../../community/presentation/widgets/community_review_card.dart';
 import '../../../community/presentation/widgets/report_review_dialog.dart';
 import '../../../community/presentation/widgets/user_profile_dialog.dart';
-import '../../../community/presentation/widgets/write_review_dialog.dart';
 import '../../../watchlist/data/models/watchlist_movie_model.dart';
 import '../../../watchlist/presentation/cubit/watchlist_cubit.dart';
 import '../../../watchlist/presentation/cubit/watchlist_state.dart';
-import '../../../watchlist/presentation/widgets/review_dialog.dart';
 import '../../data/models/cast_member_model.dart';
 import '../../data/models/movie_details_model.dart';
 import '../../data/models/movie_video_model.dart';
@@ -40,6 +39,63 @@ import '../widgets/details_action_bar.dart';
 import '../widgets/similar_movies_section.dart';
 import '../widgets/trailer_section.dart';
 import '../widgets/watch_providers_section.dart';
+
+Future<void> _openUnifiedRateReview(
+  BuildContext context, {
+  required MovieSummary movie,
+  int? runtimeMinutes,
+  required bool defaultPublishToCommunity,
+}) async {
+  final savedItem = context.read<WatchlistCubit>().state.findById(movie.id);
+  final currentUid = context.read<AuthCubit>().state.user?.uid;
+  final movieReviews = context.read<CommunityBloc>().state.reviewsForMovie(
+    movie.id,
+  );
+  MovieReviewModel? myReview;
+  if (currentUid != null) {
+    for (final r in movieReviews) {
+      if (r.uid == currentUid) {
+        myReview = r;
+        break;
+      }
+    }
+  }
+
+  final result = await RateReviewScreen.open(
+    context,
+    movie: movie,
+    initialRating: savedItem?.userRating ?? myReview?.rating,
+    initialText: myReview?.comment ?? savedItem?.userNote,
+    initialPublishToCommunity: myReview != null || defaultPublishToCommunity,
+    initialHasSpoilers: myReview?.hasSpoilers ?? false,
+    isEditingExistingCommunityReview: myReview != null,
+  );
+
+  if (result == null || !context.mounted) return;
+
+  await context.read<WatchlistCubit>().logWatchedMovie(
+    movie,
+    runtimeMinutes: runtimeMinutes,
+    userRating: result.rating,
+    userNote: result.reviewText,
+    updateReviewFields: true,
+  );
+
+  if (result.publishToCommunity &&
+      result.rating != null &&
+      result.reviewText.trim().length >= 5 &&
+      context.mounted) {
+    context.read<CommunityBloc>().add(
+      CommunityReviewSubmitted(
+        movie: movie,
+        rating: result.rating!,
+        comment: result.reviewText.trim(),
+        hasSpoilers: result.hasSpoilers,
+        isVerifiedWatch: true,
+      ),
+    );
+  }
+}
 
 /// Movie Details screen pushed onto Navigator from Discover or Watchlist.
 class MovieDetailsScreen extends StatelessWidget {
@@ -163,8 +219,28 @@ class _MovieDetailsView extends StatelessWidget {
                 return DetailsActionBar(
                   savedItem: savedItem,
                   isMutating: isMutating,
-                  onAdd: () => watchlistCubit.addToWatchlist(summary),
-                  onToggleWatched: () {
+                  onAddToWatchlist: () => watchlistCubit.addToWatchlist(summary),
+                  onMarkWatched: () async {
+                    await watchlistCubit.logWatchedMovie(
+                      summary,
+                      runtimeMinutes: detailsState.details?.runtime,
+                    );
+                    if (context.mounted) {
+                      await _openUnifiedRateReview(
+                        context,
+                        movie: summary,
+                        runtimeMinutes: detailsState.details?.runtime,
+                        defaultPublishToCommunity: false,
+                      );
+                    }
+                  },
+                  onRateAndReview: () => _openUnifiedRateReview(
+                    context,
+                    movie: summary,
+                    runtimeMinutes: detailsState.details?.runtime,
+                    defaultPublishToCommunity: false,
+                  ),
+                  onUnwatch: () {
                     if (savedItem != null) {
                       watchlistCubit.toggleWatchedStatus(savedItem);
                     }
@@ -208,7 +284,7 @@ class _DetailsContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isWide = screenWidth >= AppConstants.tabletBreakpoint;
-    final backdropHeight = isWide ? 360.0 : 290.0;
+    final backdropHeight = isWide ? 360.0 : 235.0;
 
     final movieId = details?.id ?? fallbackSummary?.id ?? 0;
     final title = details?.title ?? fallbackSummary?.title ?? 'Untitled';
@@ -347,7 +423,12 @@ class _DetailsContent extends StatelessWidget {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 920),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                padding: EdgeInsets.fromLTRB(
+                  isWide ? 20 : 16,
+                  0,
+                  isWide ? 20 : 16,
+                  28,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -356,9 +437,9 @@ class _DetailsContent extends StatelessWidget {
                       children: [
                         MoviePoster(
                           posterPath: posterPath,
-                          width: isWide ? 132 : 104,
-                          height: isWide ? 196 : 154,
-                          borderRadius: 16,
+                          width: isWide ? 132 : 88,
+                          height: isWide ? 196 : 130,
+                          borderRadius: isWide ? 16 : 13,
                           heroTag: heroTag,
                         ),
                         const SizedBox(width: 16),
@@ -438,26 +519,6 @@ class _LoadedBody extends StatelessWidget {
   final List<MovieSummary> similarMovies;
   final List<WatchProviderModel> watchProviders;
 
-  Future<void> _openReview(
-    BuildContext context,
-    WatchlistMovieModel saved,
-  ) async {
-    final result = await ReviewDialog.show(
-      context,
-      movieTitle: details.title,
-      initialRating: saved.userRating,
-      initialNote: saved.userNote,
-    );
-    if (result != null && context.mounted) {
-      await context.read<WatchlistCubit>().updateReview(
-        movieId: details.id,
-        title: details.title,
-        userRating: result.rating,
-        userNote: result.note,
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final savedItem = context.select<WatchlistCubit, WatchlistMovieModel?>(
@@ -489,7 +550,12 @@ class _LoadedBody extends StatelessWidget {
           if (savedItem != null && savedItem.isWatched) ...[
             _PersonalReviewCard(
               savedItem: savedItem,
-              onEdit: () => _openReview(context, savedItem),
+              onEdit: () => _openUnifiedRateReview(
+                context,
+                movie: details.toMovieSummary(),
+                runtimeMinutes: details.runtime,
+                defaultPublishToCommunity: false,
+              ),
             ),
             const SizedBox(height: 22),
           ],
@@ -534,37 +600,6 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
 
   final MovieDetailsModel details;
 
-  Future<void> _writeReview(
-    BuildContext context,
-    MovieReviewModel? existing,
-  ) async {
-    final result = await WriteReviewDialog.show(
-      context,
-      movieTitle: details.title,
-      initialRating: existing?.rating ?? 5,
-      initialComment: existing?.comment ?? '',
-      initialHasSpoilers: existing?.hasSpoilers ?? false,
-    );
-    if (result != null && context.mounted) {
-      final isVerifiedWatch =
-          context
-              .read<WatchlistCubit>()
-              .state
-              .findById(details.id)
-              ?.isWatched ??
-          false;
-      context.read<CommunityBloc>().add(
-        CommunityReviewSubmitted(
-          movie: details.toMovieSummary(),
-          rating: result.rating,
-          comment: result.comment,
-          hasSpoilers: result.hasSpoilers,
-          isVerifiedWatch: isVerifiedWatch,
-        ),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final currentUid = context.select<AuthCubit, String?>(
@@ -607,7 +642,12 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               TextButton.icon(
-                onPressed: () => _writeReview(context, myReview),
+                onPressed: () => _openUnifiedRateReview(
+                  context,
+                  movie: details.toMovieSummary(),
+                  runtimeMinutes: details.runtime,
+                  defaultPublishToCommunity: true,
+                ),
                 icon: Icon(
                   myReview != null
                       ? Icons.edit_outlined

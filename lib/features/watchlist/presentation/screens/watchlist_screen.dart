@@ -9,12 +9,13 @@ import '../../../../core/widgets/empty_state_view.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/loading_view.dart';
 import '../../../community/data/models/curated_list_model.dart';
+import '../../../community/data/models/movie_review_model.dart';
 import '../../../community/presentation/bloc/community_bloc.dart';
+import '../../../community/presentation/screens/rate_review_screen.dart';
 import '../../data/models/watchlist_movie_model.dart';
 import '../cubit/watchlist_cubit.dart';
 import '../cubit/watchlist_state.dart';
 import '../widgets/collection_picker_sheet.dart';
-import '../widgets/review_dialog.dart';
 import '../widgets/tonights_pick_dialog.dart';
 import '../widgets/watchlist_movie_tile.dart';
 import '../widgets/watchlist_stats_card.dart';
@@ -83,29 +84,45 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
     BuildContext context,
     WatchlistMovieModel movie,
   ) async {
-    final result = await ReviewDialog.show(
+    final communityBloc = context.read<CommunityBloc>();
+    final uid = communityBloc.currentUid;
+    MovieReviewModel? myReview;
+    if (uid != null) {
+      for (final r in communityBloc.state.reviewsForMovie(movie.movieId)) {
+        if (r.uid == uid) {
+          myReview = r;
+          break;
+        }
+      }
+    }
+
+    final summary = movie.toMovieSummary();
+    final result = await RateReviewScreen.open(
       context,
-      movieTitle: movie.title,
-      initialRating: movie.userRating,
-      initialNote: movie.userNote,
-      showPublishOption: true,
+      movie: summary,
+      initialRating: movie.userRating ?? myReview?.rating,
+      initialText: myReview?.comment ?? movie.userNote,
+      initialPublishToCommunity: myReview != null,
+      initialHasSpoilers: myReview?.hasSpoilers ?? false,
+      isEditingExistingCommunityReview: myReview != null,
     );
     if (result != null && context.mounted) {
-      await context.read<WatchlistCubit>().updateReview(
-        movieId: movie.movieId,
-        title: movie.title,
+      await context.read<WatchlistCubit>().logWatchedMovie(
+        summary,
+        runtimeMinutes: movie.runtimeMinutes,
         userRating: result.rating,
-        userNote: result.note,
+        userNote: result.reviewText,
+        updateReviewFields: true,
       );
       if (result.publishToCommunity &&
           result.rating != null &&
-          (result.note?.trim().length ?? 0) >= 5 &&
+          result.reviewText.trim().length >= 5 &&
           context.mounted) {
         context.read<CommunityBloc>().add(
           CommunityReviewSubmitted(
-            movie: movie.toMovieSummary(),
+            movie: summary,
             rating: result.rating!,
-            comment: result.note!.trim(),
+            comment: result.reviewText.trim(),
             hasSpoilers: result.hasSpoilers,
             isVerifiedWatch: true,
           ),

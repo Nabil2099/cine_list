@@ -25,7 +25,7 @@ class AppBottomNavigationBar extends StatelessWidget {
       child: NavigationBar(
         selectedIndex: currentIndex,
         onDestinationSelected: onTap,
-        height: 68,
+        height: 60,
         backgroundColor: Colors.transparent,
         indicatorColor: AppColors.pacificBlue.withValues(alpha: 0.16),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,

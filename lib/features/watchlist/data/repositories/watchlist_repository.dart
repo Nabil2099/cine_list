@@ -138,6 +138,34 @@ class WatchlistRepository {
     }
   }
 
+  Future<void> markWatchedWithReview({
+    required String uid,
+    required int movieId,
+    int? userRating,
+    String? userNote,
+    int? runtimeMinutes,
+  }) async {
+    try {
+      final updateData = <String, dynamic>{
+        'status': WatchlistFilterStatus.watched.value,
+        'watchedAt': Timestamp.fromDate(DateTime.now()),
+        'isUpNext': false,
+        'userRating': userRating,
+        'userNote': userNote?.trim().isNotEmpty == true
+            ? userNote!.trim()
+            : null,
+      };
+      if (runtimeMinutes != null) {
+        updateData['runtimeMinutes'] = runtimeMinutes;
+      }
+      await _watchlistRef(uid).doc(movieId.toString()).update(updateData);
+    } on FirebaseException catch (e) {
+      throw WatchlistException(_mapFirestoreError(e), code: e.code);
+    } catch (_) {
+      throw const WatchlistException('Could not save watched status.');
+    }
+  }
+
   Future<void> toggleUpNext({
     required String uid,
     required int movieId,

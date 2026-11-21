@@ -47,12 +47,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     super.initState();
     _scrollController.addListener(_onScroll);
     _recommendationsCubit = sl<RecommendationsCubit>();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _recommendationsCubit.syncWithWatchlist(
-        context.read<WatchlistCubit>().state.movies,
-      );
-    });
   }
 
   @override
@@ -76,6 +70,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         state.status == DiscoverStatus.loaded) {
       bloc.add(const DiscoverNextPageLoaded());
     }
+  }
+
+  void _maybeLoadMoreIfViewportShort() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _onScroll();
+    });
   }
 
   void _openMovieDetails(MovieSummary movie, {String? heroTag}) {
@@ -238,10 +239,31 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
     return BlocProvider<RecommendationsCubit>.value(
       value: _recommendationsCubit,
-      child: BlocListener<WatchlistCubit, WatchlistState>(
-        listenWhen: (prev, curr) => prev.movies != curr.movies,
-        listener: (_, watchlistState) =>
-            _recommendationsCubit.syncWithWatchlist(watchlistState.movies),
+      child: MultiBlocListener(
+        listeners: [
+          BlocListener<WatchlistCubit, WatchlistState>(
+            listenWhen: (prev, curr) => prev.movies != curr.movies,
+            listener: (context, watchlistState) {
+              if (context.read<DiscoverBloc>().state.status ==
+                  DiscoverStatus.loaded) {
+                _recommendationsCubit.syncWithWatchlist(watchlistState.movies);
+              }
+            },
+          ),
+          BlocListener<DiscoverBloc, DiscoverState>(
+            listenWhen: (prev, curr) =>
+                prev.status != curr.status ||
+                prev.movies.length != curr.movies.length,
+            listener: (context, discoverState) {
+              if (discoverState.status == DiscoverStatus.loaded) {
+                _recommendationsCubit.syncWithWatchlist(
+                  context.read<WatchlistCubit>().state.movies,
+                );
+                _maybeLoadMoreIfViewportShort();
+              }
+            },
+          ),
+        ],
         child: ColoredBox(
           color: AppColors.black,
           child: SafeArea(
@@ -753,8 +775,7 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
         ? movies.skip(1).take(5).toList()
         : const <MovieSummary>[];
     final gridMovies = showFeaturedAndCarousel
-        ? (movies.skip(6).toList()
-            ..sort((a, b) => b.voteAverage.compareTo(a.voteAverage)))
+        ? movies.skip(6).toList()
         : movies;
 
     String? activeGenreLabel;
@@ -884,6 +905,7 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
                 );
                 return SliverGrid.builder(
                   itemCount: gridMovies.length,
+                  addAutomaticKeepAlives: false,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: crossAxisCount,
                     crossAxisSpacing: isWide ? 14 : 10,
@@ -904,59 +926,55 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
             ),
           ],
           if ((state.errorMessage != null && movies.isNotEmpty) ||
-              state.hasMore)
-            SliverToBoxAdapter(
-              child: Column(
-                children: [
-                  if (state.errorMessage != null && movies.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      state.errorMessage!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.error,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                  if (state.hasMore) ...[
-                    const SizedBox(height: 22),
-                    Center(
-                      child: state.isLoadingMore
-                          ? const Padding(
-                              padding: EdgeInsets.all(10),
-                              child: CircularProgressIndicator(
-                                color: AppColors.pacificBlue,
-                                strokeWidth: 2.5,
-                              ),
-                            )
-                          : OutlinedButton.icon(
-                              onPressed: () => context.read<DiscoverBloc>().add(
-                                const DiscoverNextPageLoaded(),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.pacificBlue,
-                                side: const BorderSide(
-                                  color: AppColors.pacificBlue,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                ),
-                              ),
-                              icon: const Icon(Icons.expand_more_rounded),
-                              label: const Text(
-                                'Load More Movies',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
+              state.isLoadingMore)
+            SliverLayoutBuilder(
+              builder: (context, constraints) {
+                final columns = gridColumnsForWidth(
+                  constraints.crossAxisExtent,
+                );
+                return SliverToBoxAdapter(
+                  child: Column(
+                    children: [
+                      if (state.errorMessage != null && movies.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          state.errorMessage!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: AppColors.error,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        OutlinedButton.icon(
+                          onPressed: () => context.read<DiscoverBloc>().add(
+                            const DiscoverNextPageLoaded(),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.pacificBlue,
+                            side: const BorderSide(
+                              color: AppColors.pacificBlue,
                             ),
-                    ),
-                  ],
-                ],
-              ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          icon: const Icon(Icons.refresh_rounded, size: 16),
+                          label: const Text('Retry Loading More'),
+                        ),
+                      ],
+                      if (state.isLoadingMore) ...[
+                        const SizedBox(height: 18),
+                        DiscoverGridLazyRowSkeleton(
+                          columns: columns,
+                          spacing: isWide ? 14 : 10,
+                          aspectRatio: isWide ? 0.57 : 0.55,
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              },
             ),
         ],
       ),

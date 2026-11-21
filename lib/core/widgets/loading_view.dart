@@ -130,6 +130,51 @@ class _DiscoverSkeleton extends StatelessWidget {
   }
 }
 
+/// Shimmer skeleton row shown at the bottom of Discover's grid while lazy-loading.
+class DiscoverGridLazyRowSkeleton extends StatelessWidget {
+  const DiscoverGridLazyRowSkeleton({
+    super.key,
+    required this.columns,
+    required this.spacing,
+    required this.aspectRatio,
+  });
+
+  final int columns;
+  final double spacing;
+  final double aspectRatio;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = columns.clamp(2, 5);
+    return Shimmer.fromColors(
+      baseColor: AppColors.surfaceCard,
+      highlightColor: AppColors.dustyLavender.withValues(alpha: 0.32),
+      child: Row(
+        children: [
+          for (var i = 0; i < count; i++) ...[
+            Expanded(
+              child: AspectRatio(
+                aspectRatio: aspectRatio,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Expanded(child: _SkeletonBox(radius: 14)),
+                    SizedBox(height: 8),
+                    _SkeletonBox(height: 11, width: double.infinity, radius: 5),
+                    SizedBox(height: 5),
+                    _SkeletonBox(height: 10, width: 52, radius: 5),
+                  ],
+                ),
+              ),
+            ),
+            if (i < count - 1) SizedBox(width: spacing),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _SkeletonBox extends StatelessWidget {
   const _SkeletonBox({this.height, this.width, required this.radius});
 

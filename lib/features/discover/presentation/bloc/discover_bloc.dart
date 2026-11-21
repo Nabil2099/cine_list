@@ -5,6 +5,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/storage/preferences_service.dart';
 import '../../../../core/utils/bloc_transformers.dart';
+import '../../../../shared/models/movie_summary.dart';
 import '../../data/repositories/discover_repository.dart';
 import '../cubit/discover_state.dart';
 import 'discover_event.dart';
@@ -211,6 +212,38 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
     }
   }
 
+  /// Merges a fetched TMDB page without reordering already-displayed items.
+  ///
+  /// For page 1 of browse feeds, items 0..5 (Featured + Top 5) keep their
+  /// natural category order while `skip(6)` ("Explore More") is sorted by
+  /// `voteAverage` descending. Subsequent pages deduplicate and sort only the
+  /// newly arrived batch before appending.
+  static List<MovieSummary> mergeExplorePage({
+    required List<MovieSummary> existing,
+    required List<MovieSummary> incoming,
+    required int page,
+    bool sortExploreByRating = true,
+  }) {
+    if (page == 1) {
+      if (!sortExploreByRating || incoming.length <= 6) {
+        return List<MovieSummary>.from(incoming);
+      }
+      final head = incoming.take(6);
+      final tail = incoming.skip(6).toList()
+        ..sort((a, b) => b.voteAverage.compareTo(a.voteAverage));
+      return [...head, ...tail];
+    }
+
+    final seen = {for (final m in existing) '${m.mediaType.name}:${m.id}'};
+    final fresh = incoming
+        .where((m) => seen.add('${m.mediaType.name}:${m.id}'))
+        .toList();
+    if (sortExploreByRating && fresh.length > 1) {
+      fresh.sort((a, b) => b.voteAverage.compareTo(a.voteAverage));
+    }
+    return [...existing, ...fresh];
+  }
+
   Future<void> _loadAnime({
     required AnimeMediaFilter filter,
     int? genreId,
@@ -238,9 +271,11 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
       );
       if (requestId != _activeRequestId || emit.isDone || isClosed) return;
 
-      final combined = page == 1
-          ? response.results
-          : [...state.movies, ...response.results];
+      final combined = mergeExplorePage(
+        existing: state.movies,
+        incoming: response.results,
+        page: page,
+      );
 
       emit(
         state.copyWith(
@@ -295,9 +330,11 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
       );
       if (requestId != _activeRequestId || emit.isDone || isClosed) return;
 
-      final combined = page == 1
-          ? response.results
-          : [...state.movies, ...response.results];
+      final combined = mergeExplorePage(
+        existing: state.movies,
+        incoming: response.results,
+        page: page,
+      );
 
       emit(
         state.copyWith(
@@ -352,9 +389,11 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
           : await _repository.fetchByCategory(category, page: page);
       if (requestId != _activeRequestId || emit.isDone || isClosed) return;
 
-      final combined = page == 1
-          ? response.results
-          : [...state.movies, ...response.results];
+      final combined = mergeExplorePage(
+        existing: state.movies,
+        incoming: response.results,
+        page: page,
+      );
 
       emit(
         state.copyWith(
@@ -409,9 +448,12 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
       );
       if (requestId != _activeRequestId || emit.isDone || isClosed) return;
 
-      final combined = page == 1
-          ? response.results
-          : [...state.movies, ...response.results];
+      final combined = mergeExplorePage(
+        existing: state.movies,
+        incoming: response.results,
+        page: page,
+        sortExploreByRating: false,
+      );
 
       emit(
         state.copyWith(

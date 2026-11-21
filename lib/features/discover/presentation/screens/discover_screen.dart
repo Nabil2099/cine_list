@@ -5,7 +5,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/di/injection_container.dart';
 import '../../../../core/routing/movie_details_route.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
@@ -20,10 +19,8 @@ import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../auth/presentation/cubit/auth_state.dart';
 import '../../../community/presentation/bloc/community_bloc.dart';
 import '../../../watchlist/presentation/cubit/watchlist_cubit.dart';
-import '../../../watchlist/presentation/cubit/watchlist_state.dart';
 import '../../data/repositories/discover_repository.dart';
 import '../bloc/discover_bloc.dart';
-import '../cubit/recommendations_cubit.dart';
 import '../widgets/category_tabs.dart';
 import '../widgets/featured_movie_card.dart';
 import '../widgets/movie_search_bar.dart';
@@ -40,18 +37,15 @@ class DiscoverScreen extends StatefulWidget {
 class _DiscoverScreenState extends State<DiscoverScreen> {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
-  late final RecommendationsCubit _recommendationsCubit;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _recommendationsCubit = sl<RecommendationsCubit>();
   }
 
   @override
   void dispose() {
-    _recommendationsCubit.close();
     _scrollController
       ..removeListener(_onScroll)
       ..dispose();
@@ -237,36 +231,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         ? 20.0
         : 14.0;
 
-    return BlocProvider<RecommendationsCubit>.value(
-      value: _recommendationsCubit,
-      child: MultiBlocListener(
-        listeners: [
-          BlocListener<WatchlistCubit, WatchlistState>(
-            listenWhen: (prev, curr) => prev.movies != curr.movies,
-            listener: (context, watchlistState) {
-              if (context.read<DiscoverBloc>().state.status ==
-                  DiscoverStatus.loaded) {
-                _recommendationsCubit.syncWithWatchlist(watchlistState.movies);
-              }
-            },
-          ),
-          BlocListener<DiscoverBloc, DiscoverState>(
-            listenWhen: (prev, curr) =>
-                prev.status != curr.status ||
-                prev.movies.length != curr.movies.length,
-            listener: (context, discoverState) {
-              if (discoverState.status == DiscoverStatus.loaded) {
-                _recommendationsCubit.syncWithWatchlist(
-                  context.read<WatchlistCubit>().state.movies,
-                );
-                _maybeLoadMoreIfViewportShort();
-              }
-            },
-          ),
-        ],
-        child: ColoredBox(
-          color: AppColors.black,
-          child: SafeArea(
+    return BlocListener<DiscoverBloc, DiscoverState>(
+      listenWhen: (prev, curr) =>
+          prev.status != curr.status ||
+          prev.movies.length != curr.movies.length,
+      listener: (context, discoverState) {
+        if (discoverState.status == DiscoverStatus.loaded) {
+          _maybeLoadMoreIfViewportShort();
+        }
+      },
+      child: ColoredBox(
+        color: AppColors.black,
+        child: SafeArea(
             bottom: false,
             child: Center(
         child: ConstrainedBox(
@@ -464,7 +440,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ),
         ),
       ),
-    ),
     ),
     ),
     );
@@ -865,16 +840,6 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
                 ],
               ),
             ),
-          if (!state.isSearching)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.only(bottom: isWide ? 24 : 18),
-                child: _RecommendedForYouSection(
-                  isWide: isWide,
-                  onMovieTap: onMovieTap,
-                ),
-              ),
-            ),
           if (gridMovies.isNotEmpty) ...[
             SliverToBoxAdapter(
               child: Padding(
@@ -1039,201 +1004,6 @@ class _WatchlistAwareMovieCard extends StatelessWidget {
       isSaved: isSaved,
       onToggleSave: () => _toggleQuickSave(context, isSaved),
       onTap: onTap,
-    );
-  }
-}
-
-class _RecommendedForYouSection extends StatelessWidget {
-  const _RecommendedForYouSection({
-    required this.isWide,
-    required this.onMovieTap,
-  });
-
-  final bool isWide;
-  final void Function(MovieSummary movie, {String? heroTag}) onMovieTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<RecommendationsCubit, RecommendationsState>(
-      builder: (context, recState) {
-        if (recState.status == RecommendationsStatus.error &&
-            recState.movies.isEmpty) {
-          return const SizedBox.shrink();
-        }
-
-        final movies = recState.movies;
-        final isInitialLoading =
-            recState.status == RecommendationsStatus.initial ||
-            (recState.status == RecommendationsStatus.loading &&
-                movies.isEmpty);
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.auto_awesome_rounded,
-                  size: 18,
-                  color: AppColors.pacificBlue,
-                ),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: Text(
-                    'Recommended For You',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.pacificBlue.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: AppColors.pacificBlue.withValues(alpha: 0.35),
-                    ),
-                  ),
-                  child: Text(
-                    recState.basedOnWatchlist
-                        ? (recState.usedAi ? 'AI · Watchlist' : 'Taste Match')
-                        : 'Curated Picks',
-                    style: const TextStyle(
-                      color: AppColors.pacificBlue,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              height: isWide ? 235 : 196,
-              child: isInitialLoading
-                  ? ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: 5,
-                      separatorBuilder: (_, _) =>
-                          SizedBox(width: isWide ? 14 : 10),
-                      itemBuilder: (_, _) => Container(
-                        width: isWide ? 132 : 108,
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceCard,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                    )
-                  : ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: movies.length + 1,
-                      separatorBuilder: (_, _) =>
-                          SizedBox(width: isWide ? 14 : 10),
-                      itemBuilder: (context, index) {
-                        if (index == movies.length) {
-                          return _ShuffleRecommendationsCard(
-                            width: isWide ? 124 : 104,
-                            isShuffling: recState.isShuffling,
-                            onTap: () => context
-                                .read<RecommendationsCubit>()
-                                .shuffle(
-                                  context.read<WatchlistCubit>().state.movies,
-                                ),
-                          );
-                        }
-                        final movie = movies[index];
-                        final heroTag = 'discover-rec-${movie.id}';
-                        return _WatchlistAwareMovieCard(
-                          movie: movie,
-                          width: isWide ? 132 : 108,
-                          heroTag: heroTag,
-                          onTap: () => onMovieTap(movie, heroTag: heroTag),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _ShuffleRecommendationsCard extends StatelessWidget {
-  const _ShuffleRecommendationsCard({
-    required this.width,
-    required this.isShuffling,
-    required this.onTap,
-  });
-
-  final double width;
-  final bool isShuffling;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: isShuffling ? null : onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: width,
-        margin: const EdgeInsets.only(bottom: 34),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.pacificBlue.withValues(alpha: 0.18),
-              AppColors.surfaceCard,
-            ],
-          ),
-          border: Border.all(
-            color: AppColors.pacificBlue.withValues(alpha: 0.55),
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.pacificBlue.withValues(alpha: 0.2),
-                shape: BoxShape.circle,
-              ),
-              child: isShuffling
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.2,
-                        color: AppColors.pacificBlue,
-                      ),
-                    )
-                  : const Icon(
-                      Icons.shuffle_rounded,
-                      size: 24,
-                      color: AppColors.pacificBlue,
-                    ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              isShuffling ? 'Shuffling...' : 'Shuffle\n5 Picks',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                height: 1.25,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

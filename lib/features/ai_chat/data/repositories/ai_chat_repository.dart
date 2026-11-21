@@ -11,6 +11,7 @@ import '../../../community/data/models/movie_review_model.dart';
 import '../../../watchlist/data/models/watchlist_movie_model.dart';
 import '../models/ai_chat_context.dart';
 import '../models/chat_message_model.dart';
+import '../models/cinema_dna_model.dart';
 
 /// Repository communicating with Google Gemini (`generateContent`) REST API
 /// while grounding responses in the user's live Firestore watchlist and
@@ -237,106 +238,178 @@ class AiChatRepository {
     return _generateText(body: body, key: key);
   }
 
-  /// Uses Gemini to suggest tailored movie titles based on the user's watchlist.
-  /// Returns an empty list if Gemini is unconfigured or unavailable.
-  Future<List<({String title, String? year})>> recommendMovieTitles({
+  /// Generates a structured Cinema DNA & Blind-Spot profile from [watchlist].
+  Future<CinemaDnaProfile> analyzeCinemaDna({
     required List<WatchlistMovieModel> watchlist,
-    List<String> excludeTitles = const [],
-    int count = 8,
   }) async {
     final key = (apiKey ?? ApiConstants.geminiApiKey).trim();
-    if (key.isEmpty || watchlist.isEmpty) return const [];
+    if (key.isEmpty) {
+      throw const NetworkException(
+        'Gemini API key is not configured. Add GEMINI_API_KEY to your .env file.',
+        code: 'missing_gemini_key',
+        isAuthConfigError: true,
+      );
+    }
 
-    final loved = watchlist
-        .where((m) => (m.userRating ?? 0) >= 4)
-        .take(10)
-        .map((m) => '${m.title} (${m.userRating}/5)')
+    final watched = watchlist.where((m) => m.isWatched).toList();
+    final rated = watched
+        .where((m) => m.userRating != null && m.userRating! > 0)
+        .toList();
+    final double? avgRating = rated.isEmpty
+        ? null
+        : rated.fold<int>(0, (sum, m) => sum + m.userRating!) / rated.length;
+
+    final decadeCounts = <String, int>{};
+    for (final m in watchlist) {
+      final yearStr = Formatters.releaseYear(m.releaseDate);
+      final year = int.tryParse(yearStr);
+      if (year != null && year >= 1920) {
+        final decade = '${(year ~/ 10) * 10}s';
+        decadeCounts[decade] = (decadeCounts[decade] ?? 0) + 1;
+      }
+    }
+    String? topDecade;
+    var bestDecadeCount = 0;
+    decadeCounts.forEach((decade, count) {
+      if (count > bestDecadeCount) {
+        bestDecadeCount = count;
+        topDecade = decade;
+      }
+    });
+
+    final favorites = watchlist
+        .where((m) => (m.userRating ?? 0) >= 4 || m.rewatchCount > 0)
+        .take(12)
+        .map(
+          (m) =>
+              '${m.title} (${Formatters.releaseYear(m.releaseDate)}'
+              '${m.userRating != null ? ', ${m.userRating}/5' : ''})',
+        )
         .toList();
     final wantList = watchlist
         .where((m) => !m.isWatched)
         .take(10)
         .map((m) => m.title)
         .toList();
-    final watchedOther = watchlist
-        .where((m) => m.isWatched && (m.userRating == null || m.userRating! < 4))
-        .take(8)
-        .map((m) => m.title)
-        .toList();
+    final allTitles = watchlist.take(40).map((m) => m.title).join(', ');
 
-    final promptBuffer = StringBuffer()
-      ..writeln('Analyze this user\'s movie taste and recommend $count movies they have NOT seen yet.');
-    if (loved.isNotEmpty) {
-      promptBuffer.writeln('Highly rated: ${loved.join(', ')}');
-    }
-    if (wantList.isNotEmpty) {
-      promptBuffer.writeln('Want to Watch: ${wantList.join(', ')}');
-    }
-    if (watchedOther.isNotEmpty) {
-      promptBuffer.writeln('Also watched: ${watchedOther.join(', ')}');
-    }
-    final allWatchlistTitles = watchlist.take(30).map((m) => m.title).toList();
-    promptBuffer.writeln(
-      'Do NOT recommend any of these: ${[...allWatchlistTitles, ...excludeTitles].join(', ')}.',
-    );
-    promptBuffer.writeln(
-      'Respond ONLY with a valid JSON array of objects like [{"title":"Movie Name","year":"2019"}]. No markdown or extra text.',
-    );
-
-    try {
-      final raw = await _generateText(
-        key: key,
-        body: {
-          'systemInstruction': {
-            'parts': [
-              {
-                'text':
-                    'You are CineList\'s recommendation engine. Output strictly a raw JSON array of {"title": string, "year": string} objects with no markdown fences.',
-              },
-            ],
-          },
-          'contents': [
-            {
-              'role': 'user',
-              'parts': [
-                {'text': promptBuffer.toString()},
-              ],
-            },
-          ],
-          'generationConfig': {'temperature': 0.85, 'maxOutputTokens': 512},
-        },
+    final prompt = StringBuffer()
+      ..writeln('Analyze this CineList user\'s Cinema DNA:')
+      ..writeln('Total saved: ${watchlist.length}, Watched: ${watched.length}')
+      ..writeln(
+        'Favorites/Highly Rated: ${favorites.isEmpty ? 'None yet' : favorites.join(', ')}',
+      )
+      ..writeln(
+        'Want to Watch: ${wantList.isEmpty ? 'None' : wantList.join(', ')}',
+      )
+      ..writeln('Top Decade: ${topDecade ?? 'Mixed'}')
+      ..writeln(
+        'NEVER suggest any of these already-saved movies as blind spots: $allTitles.',
+      )
+      ..writeln(
+        'Respond ONLY with raw valid JSON matching this schema:\n'
+        '{\n'
+        '  "archetype": "3-5 word cinephile title",\n'
+        '  "tagline": "1 punchy sentence about their taste",\n'
+        '  "traits": [{"label": "Trait Name", "score": 88}],\n'
+        '  "blindSpots": [{"title": "Exact Movie Title", "year": "YYYY", "reason": "1 concise sentence why it fills a blind spot in their taste"}]\n'
+        '}\n'
+        'Provide 4 traits (scores 45-98) and 4 blindSpots.',
       );
 
-      var cleaned = raw.trim();
-      if (cleaned.startsWith('```')) {
-        cleaned = cleaned
-            .replaceFirst(RegExp(r'^```(?:json)?\s*'), '')
-            .replaceFirst(RegExp(r'\s*```$'), '')
-            .trim();
-      }
-      final start = cleaned.indexOf('[');
-      final end = cleaned.lastIndexOf(']');
-      if (start == -1 || end <= start) return const [];
+    final raw = await _generateText(
+      key: key,
+      body: {
+        'systemInstruction': {
+          'parts': [
+            {
+              'text':
+                  'You are CineList\'s Cinema DNA Profiler. Return strictly valid JSON with no markdown fences or extra commentary.',
+            },
+          ],
+        },
+        'contents': [
+          {
+            'role': 'user',
+            'parts': [
+              {'text': prompt.toString()},
+            ],
+          },
+        ],
+        'generationConfig': {'temperature': 0.75, 'maxOutputTokens': 900},
+      },
+    );
 
-      final decoded = jsonDecode(cleaned.substring(start, end + 1));
-      if (decoded is! List) return const [];
+    var cleaned = raw.trim();
+    if (cleaned.startsWith('```')) {
+      cleaned = cleaned
+          .replaceFirst(RegExp(r'^```(?:json)?\s*'), '')
+          .replaceFirst(RegExp(r'\s*```$'), '')
+          .trim();
+    }
+    final start = cleaned.indexOf('{');
+    final end = cleaned.lastIndexOf('}');
+    if (start == -1 || end <= start) {
+      throw const NetworkException(
+        'Could not parse Cinema DNA response. Please try again.',
+      );
+    }
 
-      final picks = <({String title, String? year})>[];
-      for (final item in decoded) {
-        if (item is Map) {
-          final title = (item['title'] as String?)?.trim() ?? '';
-          final year = item['year']?.toString().trim();
-          if (title.isNotEmpty) {
-            picks.add((
-              title: title,
-              year: (year != null && year.isNotEmpty) ? year : null,
-            ));
-          }
+    final decoded = jsonDecode(cleaned.substring(start, end + 1));
+    if (decoded is! Map) {
+      throw const NetworkException(
+        'Unexpected Cinema DNA format. Please try again.',
+      );
+    }
+
+    final rawTraits = decoded['traits'];
+    final traits = <CinemaDnaTrait>[];
+    if (rawTraits is List) {
+      for (final item in rawTraits.whereType<Map>()) {
+        final label = (item['label'] as String?)?.trim() ?? '';
+        final score = ((item['score'] as num?)?.toInt() ?? 75).clamp(20, 100);
+        if (label.isNotEmpty) {
+          traits.add(CinemaDnaTrait(label: label, score: score));
         }
       }
-      return picks;
-    } catch (_) {
-      return const [];
     }
+
+    final rawBlindSpots = decoded['blindSpots'];
+    final blindSpots = <CinemaDnaBlindSpot>[];
+    if (rawBlindSpots is List) {
+      for (final item in rawBlindSpots.whereType<Map>()) {
+        final title = (item['title'] as String?)?.trim() ?? '';
+        final year = item['year']?.toString().trim();
+        final reason = (item['reason'] as String?)?.trim() ?? '';
+        if (title.isNotEmpty) {
+          blindSpots.add(
+            CinemaDnaBlindSpot(
+              title: title,
+              year: (year != null && year.isNotEmpty) ? year : null,
+              reason: reason,
+            ),
+          );
+        }
+      }
+    }
+
+    final archetype = (decoded['archetype'] as String?)?.trim();
+    final tagline = (decoded['tagline'] as String?)?.trim();
+
+    return CinemaDnaProfile(
+      archetype: (archetype != null && archetype.isNotEmpty)
+          ? archetype
+          : 'The Eclectic Cinephile',
+      tagline: (tagline != null && tagline.isNotEmpty)
+          ? tagline
+          : 'You gravitate toward memorable storytelling and bold visual worlds.',
+      traits: traits.take(4).toList(),
+      blindSpots: blindSpots.take(5).toList(),
+      totalMovies: watchlist.length,
+      watchedCount: watched.length,
+      averageRating: avgRating,
+      topDecade: topDecade,
+    );
   }
 
   Future<String> _generateText({

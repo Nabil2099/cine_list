@@ -8,9 +8,7 @@ import '../../features/community/data/repositories/community_repository.dart';
 import '../../features/community/presentation/bloc/community_bloc.dart';
 import '../../features/discover/data/datasources/tmdb_remote_data_source.dart';
 import '../../features/discover/data/repositories/discover_repository.dart';
-import '../../features/discover/data/repositories/recommendation_repository.dart';
 import '../../features/discover/presentation/bloc/discover_bloc.dart';
-import '../../features/discover/presentation/cubit/recommendations_cubit.dart';
 import '../../features/movie_details/data/repositories/movie_details_repository.dart';
 import '../../features/movie_details/presentation/cubit/movie_details_cubit.dart';
 import '../../features/watchlist/data/repositories/watchlist_repository.dart';
@@ -44,12 +42,6 @@ Future<void> configureDependencies({
   );
   sl.registerLazySingleton<WatchlistRepository>(() => WatchlistRepository());
   sl.registerLazySingleton<AiChatRepository>(() => AiChatRepository());
-  sl.registerLazySingleton<RecommendationRepository>(
-    () => RecommendationRepository(
-      sl<TmdbRemoteDataSource>(),
-      sl<AiChatRepository>(),
-    ),
-  );
   sl.registerLazySingleton<CommunityRepository>(() => CommunityRepository());
 
   // Cubits & BLoCs
@@ -59,9 +51,6 @@ Future<void> configureDependencies({
       sl<DiscoverRepository>(),
       preferencesService: sl<PreferencesService>(),
     ),
-  );
-  sl.registerFactory<RecommendationsCubit>(
-    () => RecommendationsCubit(sl<RecommendationRepository>()),
   );
   sl.registerFactory<MovieDetailsCubit>(
     () => MovieDetailsCubit(sl<MovieDetailsRepository>()),

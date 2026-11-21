@@ -52,32 +52,36 @@ class _AiPickCardsRowState extends State<AiPickCardsRow> {
   }
 
   Future<void> _resolveAll() async {
-    final results = <MovieSummary>[];
-    final seenIds = <int>{};
     final repo = sl<DiscoverRepository>();
-
-    for (final pick in widget.picks.take(6)) {
-      final cached = _cache[pick.cacheKey];
-      if (cached != null) {
-        if (seenIds.add(cached.id)) results.add(cached);
-        continue;
-      }
-      try {
-        final response = await repo.searchMovies(query: pick.title);
-        if (response.results.isEmpty) continue;
-        var match = response.results.first;
-        if (pick.year != null) {
-          for (final candidate in response.results) {
-            if ((candidate.releaseDate ?? '').startsWith(pick.year!)) {
-              match = candidate;
-              break;
+    final resolvedList = await Future.wait(
+      widget.picks.take(6).map((pick) async {
+        final cached = _cache[pick.cacheKey];
+        if (cached != null) return cached;
+        try {
+          final response = await repo.searchMovies(query: pick.title);
+          if (response.results.isEmpty) return null;
+          var match = response.results.first;
+          if (pick.year != null) {
+            for (final candidate in response.results) {
+              if ((candidate.releaseDate ?? '').startsWith(pick.year!)) {
+                match = candidate;
+                break;
+              }
             }
           }
+          _cache[pick.cacheKey] = match;
+          return match;
+        } catch (_) {
+          return null;
         }
-        _cache[pick.cacheKey] = match;
-        if (seenIds.add(match.id)) results.add(match);
-      } catch (_) {
-        // Skip picks that fail to resolve.
+      }),
+    );
+
+    final results = <MovieSummary>[];
+    final seenIds = <int>{};
+    for (final item in resolvedList) {
+      if (item != null && seenIds.add(item.id)) {
+        results.add(item);
       }
     }
 
@@ -151,26 +155,23 @@ class _AiPickCardsRowState extends State<AiPickCardsRow> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Padding(
-        padding: EdgeInsets.only(top: 10),
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
         child: SizedBox(
-          height: 22,
-          child: Row(
-            children: [
-              SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.pacificBlue,
-                ),
+          height: 154,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 3,
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            itemBuilder: (_, _) => Container(
+              width: 112,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.surfaceBorder),
               ),
-              SizedBox(width: 8),
-              Text(
-                'Loading movie cards...',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
-              ),
-            ],
+            ),
           ),
         ),
       );

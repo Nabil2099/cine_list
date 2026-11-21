@@ -20,6 +20,7 @@ import '../../data/models/chat_message_model.dart';
 import '../cubit/ai_chat_cubit.dart';
 import '../cubit/ai_chat_state.dart';
 import '../widgets/ai_pick_cards_row.dart';
+import '../widgets/cinema_dna_sheet.dart';
 import '../widgets/formatted_chat_text.dart';
 
 class _MoodOption {
@@ -271,6 +272,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 isSignedIn: isSignedIn,
                 showDrawerButton: !isWideWeb,
                 watchlistCount: watchlistCount,
+                onOpenCinemaDna: () =>
+                    CinemaDnaSheet.show(context, onExplorePrompt: _send),
                 onClear: () => context.read<AiChatCubit>().clearChat(),
               ),
               _MoodPickerBar(moods: _moods, onMoodTap: (m) => _send(m.prompt)),
@@ -287,16 +290,32 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         isSignedIn: isSignedIn,
                         watchlistCount: watchlistCount,
                         prompts: _quickPrompts,
+                        onOpenCinemaDna: () => CinemaDnaSheet.show(
+                          context,
+                          onExplorePrompt: _send,
+                        ),
                         onPromptTap: (p) => _send(p),
                       );
                     }
 
+                    final lastMsg = state.messages.last;
+                    final showFollowUps =
+                        !state.isSending &&
+                        !lastMsg.isUser &&
+                        !lastMsg.isError &&
+                        lastMsg.text.trim().isNotEmpty;
+
                     return ListView.separated(
                       controller: _scrollController,
                       padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                      itemCount: state.messages.length,
+                      itemCount: state.messages.length + (showFollowUps ? 1 : 0),
                       separatorBuilder: (_, _) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
+                        if (showFollowUps && index == state.messages.length) {
+                          return _FollowUpRefinementBar(
+                            onSelect: (prompt) => _send(prompt),
+                          );
+                        }
                         final msg = state.messages[index];
                         final isStreamingMsg =
                             state.isSending &&
@@ -387,12 +406,14 @@ class _AiHeader extends StatelessWidget {
     required this.isSignedIn,
     required this.showDrawerButton,
     required this.watchlistCount,
+    required this.onOpenCinemaDna,
     required this.onClear,
   });
 
   final bool isSignedIn;
   final bool showDrawerButton;
   final int watchlistCount;
+  final VoidCallback onOpenCinemaDna;
   final VoidCallback onClear;
 
   @override
@@ -427,6 +448,27 @@ class _AiHeader extends StatelessWidget {
               ],
             ),
           ),
+          OutlinedButton.icon(
+            onPressed: onOpenCinemaDna,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.khakiBeige,
+              backgroundColor: AppColors.khakiBeige.withValues(alpha: 0.1),
+              side: BorderSide(
+                color: AppColors.khakiBeige.withValues(alpha: 0.45),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            icon: const Icon(Icons.fingerprint_rounded, size: 16),
+            label: const Text(
+              'DNA',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+          ),
           if (hasMessages)
             IconButton(
               onPressed: onClear,
@@ -447,82 +489,226 @@ class _AiEmptyPrompts extends StatelessWidget {
     required this.isSignedIn,
     required this.watchlistCount,
     required this.prompts,
+    required this.onOpenCinemaDna,
     required this.onPromptTap,
   });
 
   final bool isSignedIn;
   final int watchlistCount;
   final List<String> prompts;
+  final VoidCallback onOpenCinemaDna;
   final ValueChanged<String> onPromptTap;
+
+  static const _promptIcons = [
+    Icons.auto_awesome_rounded,
+    Icons.movie_filter_rounded,
+    Icons.nightlight_round,
+    Icons.diamond_outlined,
+    Icons.bookmark_added_outlined,
+  ];
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.pacificBlue.withValues(alpha: 0.24),
-                  AppColors.softPeriwinkle.withValues(alpha: 0.2),
+          InkWell(
+            onTap: onOpenCinemaDna,
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.pacificBlue.withValues(alpha: 0.22),
+                    AppColors.surfaceCard,
+                    AppColors.khakiBeige.withValues(alpha: 0.14),
+                  ],
+                ),
+                border: Border.all(
+                  color: AppColors.pacificBlue.withValues(alpha: 0.5),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.pacificBlue.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.fingerprint_rounded,
+                      color: AppColors.pacificBlue,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              'Cinema DNA & Blind Spots',
+                              style: TextStyle(
+                                color: AppColors.khakiBeige,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.pacificBlue,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Text(
+                                'NEW',
+                                style: TextStyle(
+                                  color: AppColors.black,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          isSignedIn && watchlistCount >= 2
+                              ? 'Decode your $watchlistCount saved movies into a taste archetype + unseen blind-spot picks.'
+                              : 'Discover your cinephile archetype, taste traits & blind-spot recommendations.',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12.5,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 16,
+                    color: AppColors.pacificBlue,
+                  ),
                 ],
               ),
-              border: Border.all(
-                color: AppColors.pacificBlue.withValues(alpha: 0.4),
-              ),
-            ),
-            child: const Icon(
-              Icons.auto_awesome_rounded,
-              color: AppColors.khakiBeige,
-              size: 36,
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
           Text(
-            'Your Personal Movie Concierge',
-            style: Theme.of(context).textTheme.titleLarge,
-            textAlign: TextAlign.center,
+            'Quick Concierge Prompts',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            isSignedIn && watchlistCount > 0
-                ? 'Pick a mood above or ask for recommendations tailored to your $watchlistCount saved movies.'
-                : 'Pick a mood above or ask for curated movie recommendations anytime.',
-            style: Theme.of(context).textTheme.bodyMedium,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            alignment: WrapAlignment.center,
-            children: prompts
-                .map(
-                  (prompt) => ActionChip(
-                    label: Text(
-                      prompt,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 13,
+          const SizedBox(height: 10),
+          for (var i = 0; i < prompts.length; i++) ...[
+            InkWell(
+              onTap: () => onPromptTap(prompts[i]),
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.surfaceBorder),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _promptIcons[i % _promptIcons.length],
+                      size: 18,
+                      color: AppColors.pacificBlue,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        prompts[i],
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
-                    backgroundColor: AppColors.surfaceCard,
-                    side: const BorderSide(color: AppColors.surfaceBorder),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                    const Icon(
+                      Icons.north_east_rounded,
+                      size: 15,
+                      color: AppColors.textMuted,
                     ),
-                    onPressed: () => onPromptTap(prompt),
-                  ),
-                )
-                .toList(),
-          ),
+                  ],
+                ),
+              ),
+            ),
+            if (i < prompts.length - 1) const SizedBox(height: 8),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _FollowUpRefinementBar extends StatelessWidget {
+  const _FollowUpRefinementBar({required this.onSelect});
+
+  final ValueChanged<String> onSelect;
+
+  static const _refinements = [
+    ('⏱️ Shorter (<100m)', 'Give me shorter options under 100 minutes.'),
+    ('💎 Hidden Gems', 'Give me deeper, underrated hidden gems instead.'),
+    ('🎌 Anime Version', 'Recommend Japanese anime films or series with this same vibe.'),
+    ('🎲 Surprise Me', 'Surprise me with one bold wildcard pick and why it works.'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final item in _refinements) ...[
+              ActionChip(
+                label: Text(
+                  item.$1,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                backgroundColor: AppColors.surfaceCard,
+                side: BorderSide(
+                  color: AppColors.pacificBlue.withValues(alpha: 0.35),
+                ),
+                visualDensity: VisualDensity.compact,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                onPressed: () => onSelect(item.$2),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ],
+        ),
       ),
     );
   }

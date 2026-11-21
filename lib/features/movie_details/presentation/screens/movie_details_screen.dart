@@ -104,27 +104,33 @@ Future<void> _openUnifiedRateReview(
   }
 }
 
-/// Movie Details screen pushed onto Navigator from Discover or Watchlist.
+/// Movie/Series Details screen pushed onto Navigator from Discover or Watchlist.
 class MovieDetailsScreen extends StatelessWidget {
   const MovieDetailsScreen({
     super.key,
     required this.movieId,
     this.initialMovie,
     this.heroTag,
+    this.mediaType,
   });
 
   final int movieId;
   final MovieSummary? initialMovie;
   final String? heroTag;
+  final MediaType? mediaType;
 
   @override
   Widget build(BuildContext context) {
+    final effectiveType =
+        mediaType ?? initialMovie?.mediaType ?? MediaType.movie;
     return BlocProvider<MovieDetailsCubit>(
-      create: (_) => sl<MovieDetailsCubit>()..loadMovie(movieId),
+      create: (_) =>
+          sl<MovieDetailsCubit>()..loadMovie(movieId, mediaType: effectiveType),
       child: _MovieDetailsView(
         movieId: movieId,
         initialMovie: initialMovie,
         heroTag: heroTag,
+        mediaType: effectiveType,
       ),
     );
   }
@@ -135,11 +141,13 @@ class _MovieDetailsView extends StatelessWidget {
     required this.movieId,
     this.initialMovie,
     this.heroTag,
+    required this.mediaType,
   });
 
   final int movieId;
   final MovieSummary? initialMovie;
   final String? heroTag;
+  final MediaType mediaType;
 
   @override
   Widget build(BuildContext context) {
@@ -205,7 +213,7 @@ class _MovieDetailsView extends StatelessWidget {
                             'Unable to load movie information.',
                         onRetry: () => context
                             .read<MovieDetailsCubit>()
-                            .loadMovie(movieId),
+                            .loadMovie(movieId, mediaType: mediaType),
                       ),
                     ),
                   ],
@@ -334,9 +342,19 @@ class _DetailsContent extends StatelessWidget {
 
     final runtimeText = Formatters.runtime(details?.runtime);
     final yearText = Formatters.releaseYear(releaseDate);
-    final metaLine = runtimeText.isNotEmpty
-        ? '$yearText  •  $runtimeText'
-        : yearText;
+    final tvParts = <String>[
+      if (details?.numberOfSeasons != null && details!.numberOfSeasons! > 0)
+        '${details!.numberOfSeasons} ${details!.numberOfSeasons == 1 ? 'Season' : 'Seasons'}',
+      if (details?.numberOfEpisodes != null && details!.numberOfEpisodes! > 0)
+        '${details!.numberOfEpisodes} eps',
+    ];
+    final metaLine = [
+      yearText,
+      if (details?.mediaType == MediaType.tv && tvParts.isNotEmpty)
+        ...tvParts
+      else if (runtimeText.isNotEmpty)
+        runtimeText,
+    ].join('  •  ');
 
     return CustomScrollView(
       slivers: [

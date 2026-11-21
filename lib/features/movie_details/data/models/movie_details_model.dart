@@ -2,7 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import '../../../../shared/models/movie_summary.dart';
 
-/// Detailed movie model parsed from TMDB `/movie/{id}`.
+/// Detailed movie or TV series model parsed from TMDB `/movie/{id}` or `/tv/{id}`.
 class MovieDetailsModel extends Equatable {
   const MovieDetailsModel({
     required this.id,
@@ -15,9 +15,15 @@ class MovieDetailsModel extends Equatable {
     this.overview = '',
     this.tagline = '',
     this.genres = const [],
+    this.mediaType = MediaType.movie,
+    this.numberOfSeasons,
+    this.numberOfEpisodes,
   });
 
-  factory MovieDetailsModel.fromJson(Map<String, dynamic> json) {
+  factory MovieDetailsModel.fromJson(
+    Map<String, dynamic> json, {
+    MediaType mediaType = MediaType.movie,
+  }) {
     final rawGenres = json['genres'];
     final genres = rawGenres is List
         ? rawGenres
@@ -28,19 +34,45 @@ class MovieDetailsModel extends Equatable {
               .toList()
         : const <String>[];
 
+    final resolvedMediaType =
+        (mediaType == MediaType.tv ||
+            (json['title'] == null && json['name'] != null))
+        ? MediaType.tv
+        : MediaType.movie;
+
+    final rawTitle =
+        (json['title'] as String?) ??
+        (json['name'] as String?) ??
+        (json['original_title'] as String?) ??
+        (json['original_name'] as String?);
+    final title = (rawTitle != null && rawTitle.trim().isNotEmpty)
+        ? rawTitle.trim()
+        : 'Untitled';
+
+    int? runtime = (json['runtime'] as num?)?.toInt();
+    if (runtime == null && json['episode_run_time'] is List) {
+      final list = (json['episode_run_time'] as List).whereType<num>().toList();
+      if (list.isNotEmpty) {
+        runtime = list.first.toInt();
+      }
+    }
+
     return MovieDetailsModel(
       id: (json['id'] as num?)?.toInt() ?? 0,
-      title: (json['title'] as String?)?.trim().isNotEmpty == true
-          ? (json['title'] as String).trim()
-          : (json['original_title'] as String? ?? 'Untitled'),
+      title: title,
       posterPath: json['poster_path'] as String?,
       backdropPath: json['backdrop_path'] as String?,
-      releaseDate: json['release_date'] as String?,
-      runtime: (json['runtime'] as num?)?.toInt(),
+      releaseDate:
+          (json['release_date'] as String?) ??
+          (json['first_air_date'] as String?),
+      runtime: runtime,
       voteAverage: (json['vote_average'] as num?)?.toDouble() ?? 0.0,
       overview: (json['overview'] as String?) ?? '',
       tagline: (json['tagline'] as String?) ?? '',
       genres: genres,
+      mediaType: resolvedMediaType,
+      numberOfSeasons: (json['number_of_seasons'] as num?)?.toInt(),
+      numberOfEpisodes: (json['number_of_episodes'] as num?)?.toInt(),
     );
   }
 
@@ -54,6 +86,9 @@ class MovieDetailsModel extends Equatable {
   final String overview;
   final String tagline;
   final List<String> genres;
+  final MediaType mediaType;
+  final int? numberOfSeasons;
+  final int? numberOfEpisodes;
 
   MovieSummary toMovieSummary() {
     return MovieSummary(
@@ -64,6 +99,7 @@ class MovieDetailsModel extends Equatable {
       releaseDate: releaseDate,
       voteAverage: voteAverage,
       overview: overview,
+      mediaType: mediaType,
     );
   }
 
@@ -79,5 +115,8 @@ class MovieDetailsModel extends Equatable {
     overview,
     tagline,
     genres,
+    mediaType,
+    numberOfSeasons,
+    numberOfEpisodes,
   ];
 }

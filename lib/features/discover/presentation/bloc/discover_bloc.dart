@@ -46,11 +46,13 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
   ) async {
     switch (event) {
       case DiscoverInitialLoaded():
-        await _loadCategory(state.selectedCategory, page: 1, emit: emit);
+        await _loadCurrentFeed(page: 1, emit: emit);
       case DiscoverCategorySelected(:final category):
         await _selectCategory(category, emit);
       case DiscoverGenreSelected(:final genreId):
         await _selectGenre(genreId, emit);
+      case DiscoverAnimeFilterSelected(:final filter):
+        await _selectAnimeFilter(filter, emit);
       case DiscoverSearchChanged(:final query):
         await _searchChanged(query, emit);
       case DiscoverSearchCleared():
@@ -74,7 +76,6 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
     await _preferencesService?.setSelectedDiscoverCategory(category.key);
     if (emit.isDone) return;
 
-    final activeGenreId = state.selectedGenreId;
     emit(
       state.copyWith(
         selectedCategory: category,
@@ -82,16 +83,7 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
         clearError: true,
       ),
     );
-    if (activeGenreId != null) {
-      await _loadGenre(
-        activeGenreId,
-        category: category,
-        page: 1,
-        emit: emit,
-      );
-    } else {
-      await _loadCategory(category, page: 1, emit: emit);
-    }
+    await _loadCurrentFeed(page: 1, emit: emit);
   }
 
   Future<void> _selectGenre(int? genreId, Emitter<DiscoverState> emit) async {
@@ -101,23 +93,37 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
 
     if (genreId == null) {
       emit(state.copyWith(clearGenre: true, searchQuery: '', clearError: true));
-      await _loadCategory(state.selectedCategory, page: 1, emit: emit);
+    } else {
+      emit(
+        state.copyWith(
+          selectedGenreId: genreId,
+          searchQuery: '',
+          clearError: true,
+        ),
+      );
+    }
+    await _loadCurrentFeed(page: 1, emit: emit);
+  }
+
+  Future<void> _selectAnimeFilter(
+    AnimeMediaFilter filter,
+    Emitter<DiscoverState> emit,
+  ) async {
+    if (filter == state.animeFilter &&
+        state.selectedCategory == DiscoverCategory.anime &&
+        !state.isSearching) {
       return;
     }
-
+    _cancelOngoingSearch();
     emit(
       state.copyWith(
-        selectedGenreId: genreId,
+        selectedCategory: DiscoverCategory.anime,
+        animeFilter: filter,
         searchQuery: '',
         clearError: true,
       ),
     );
-    await _loadGenre(
-      genreId,
-      category: state.selectedCategory,
-      page: 1,
-      emit: emit,
-    );
+    await _loadCurrentFeed(page: 1, emit: emit);
   }
 
   Future<void> _searchChanged(String query, Emitter<DiscoverState> emit) async {
@@ -126,16 +132,7 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
 
     if (trimmed.isEmpty) {
       _cancelOngoingSearch();
-      if (state.selectedGenreId != null) {
-        await _loadGenre(
-          state.selectedGenreId!,
-          category: state.selectedCategory,
-          page: 1,
-          emit: emit,
-        );
-      } else {
-        await _loadCategory(state.selectedCategory, page: 1, emit: emit);
-      }
+      await _loadCurrentFeed(page: 1, emit: emit);
       return;
     }
 
@@ -148,36 +145,14 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
     if (!state.isSearching && state.searchQuery.isEmpty) return;
     _cancelOngoingSearch();
     emit(state.copyWith(searchQuery: '', clearError: true));
-    if (state.selectedGenreId != null) {
-      await _loadGenre(
-        state.selectedGenreId!,
-        category: state.selectedCategory,
-        page: 1,
-        emit: emit,
-      );
-    } else {
-      await _loadCategory(state.selectedCategory, page: 1, emit: emit);
-    }
+    await _loadCurrentFeed(page: 1, emit: emit);
   }
 
   Future<void> _retry(Emitter<DiscoverState> emit) async {
     if (state.isSearching) {
       await _performSearch(state.searchQuery.trim(), page: 1, emit: emit);
-    } else if (state.selectedGenreId != null) {
-      await _loadGenre(
-        state.selectedGenreId!,
-        category: state.selectedCategory,
-        page: 1,
-        emit: emit,
-        forceRefresh: true,
-      );
     } else {
-      await _loadCategory(
-        state.selectedCategory,
-        page: 1,
-        emit: emit,
-        forceRefresh: true,
-      );
+      await _loadCurrentFeed(page: 1, emit: emit, forceRefresh: true);
     }
   }
 
@@ -200,15 +175,96 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
         page: nextPage,
         emit: emit,
       );
+    } else {
+      await _loadCurrentFeed(page: nextPage, emit: emit);
+    }
+  }
+
+  Future<void> _loadCurrentFeed({
+    required int page,
+    required Emitter<DiscoverState> emit,
+    bool forceRefresh = false,
+  }) async {
+    if (state.selectedCategory == DiscoverCategory.anime) {
+      await _loadAnime(
+        filter: state.animeFilter,
+        genreId: state.selectedGenreId,
+        page: page,
+        emit: emit,
+        forceRefresh: forceRefresh,
+      );
     } else if (state.selectedGenreId != null) {
       await _loadGenre(
         state.selectedGenreId!,
         category: state.selectedCategory,
-        page: nextPage,
+        page: page,
         emit: emit,
+        forceRefresh: forceRefresh,
       );
     } else {
-      await _loadCategory(state.selectedCategory, page: nextPage, emit: emit);
+      await _loadCategory(
+        state.selectedCategory,
+        page: page,
+        emit: emit,
+        forceRefresh: forceRefresh,
+      );
+    }
+  }
+
+  Future<void> _loadAnime({
+    required AnimeMediaFilter filter,
+    int? genreId,
+    required int page,
+    required Emitter<DiscoverState> emit,
+    bool forceRefresh = false,
+  }) async {
+    final requestId = ++_activeRequestId;
+    if (page == 1) {
+      emit(
+        state.copyWith(
+          status: DiscoverStatus.loading,
+          isLoadingMore: false,
+          clearError: true,
+        ),
+      );
+    }
+
+    try {
+      final response = await _repository.fetchAnime(
+        filter: filter,
+        genreId: genreId,
+        page: page,
+        forceRefresh: forceRefresh,
+      );
+      if (requestId != _activeRequestId || emit.isDone || isClosed) return;
+
+      final combined = page == 1
+          ? response.results
+          : [...state.movies, ...response.results];
+
+      emit(
+        state.copyWith(
+          status: combined.isEmpty
+              ? DiscoverStatus.empty
+              : DiscoverStatus.loaded,
+          movies: combined,
+          currentPage: response.page,
+          hasMore: response.hasMore,
+          isLoadingMore: false,
+          clearError: true,
+          isAuthConfigError: false,
+        ),
+      );
+    } on AppException catch (e) {
+      if (requestId != _activeRequestId || emit.isDone || isClosed) return;
+      _handleError(e, isFirstPage: page == 1, emit: emit);
+    } catch (_) {
+      if (requestId != _activeRequestId || emit.isDone || isClosed) return;
+      _handleError(
+        const NetworkException('Unable to load anime right now.'),
+        isFirstPage: page == 1,
+        emit: emit,
+      );
     }
   }
 

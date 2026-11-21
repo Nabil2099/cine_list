@@ -37,6 +37,7 @@ class WatchlistMovieModel extends Equatable {
     this.runtimeMinutes,
     this.isUpNext = false,
     this.rewatchCount = 0,
+    this.mediaType = MediaType.movie,
   });
 
   factory WatchlistMovieModel.fromMovieSummary(
@@ -68,6 +69,7 @@ class WatchlistMovieModel extends Equatable {
       runtimeMinutes: runtimeMinutes,
       isUpNext: isUpNext,
       rewatchCount: rewatchCount,
+      mediaType: movie.mediaType,
     );
   }
 
@@ -87,6 +89,7 @@ class WatchlistMovieModel extends Equatable {
       runtimeMinutes: (map['runtimeMinutes'] as num?)?.toInt(),
       isUpNext: map['isUpNext'] == true,
       rewatchCount: ((map['rewatchCount'] as num?)?.toInt() ?? 0).clamp(0, 999),
+      mediaType: MediaType.fromString(map['mediaType'] as String?),
     );
   }
 
@@ -104,6 +107,7 @@ class WatchlistMovieModel extends Equatable {
   final int? runtimeMinutes;
   final bool isUpNext;
   final int rewatchCount;
+  final MediaType mediaType;
 
   bool get isWatched => status == WatchlistFilterStatus.watched;
 
@@ -115,6 +119,7 @@ class WatchlistMovieModel extends Equatable {
       backdropPath: backdropPath,
       releaseDate: releaseDate,
       voteAverage: voteAverage,
+      mediaType: mediaType,
     );
   }
 
@@ -134,6 +139,7 @@ class WatchlistMovieModel extends Equatable {
       'runtimeMinutes': runtimeMinutes,
       'isUpNext': isUpNext,
       'rewatchCount': rewatchCount,
+      'mediaType': mediaType.name,
     };
   }
 

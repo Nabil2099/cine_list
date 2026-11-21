@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 
+import '../../../../shared/models/movie_summary.dart';
+
 /// Public movie review stored in `reviews/{movieId}_{uid}`.
 class MovieReviewModel extends Equatable {
   const MovieReviewModel({
@@ -19,6 +21,7 @@ class MovieReviewModel extends Equatable {
     this.hasSpoilers = false,
     this.isVerifiedWatch = false,
     this.replyCount = 0,
+    this.mediaType = MediaType.movie,
   });
 
   factory MovieReviewModel.fromMap(String id, Map<String, dynamic> map) {
@@ -47,6 +50,7 @@ class MovieReviewModel extends Equatable {
       hasSpoilers: map['hasSpoilers'] == true,
       isVerifiedWatch: map['isVerifiedWatch'] == true,
       replyCount: ((map['replyCount'] as num?)?.toInt() ?? 0).clamp(0, 999999),
+      mediaType: MediaType.fromString(map['mediaType'] as String?),
     );
   }
 
@@ -65,6 +69,7 @@ class MovieReviewModel extends Equatable {
   final bool hasSpoilers;
   final bool isVerifiedWatch;
   final int replyCount;
+  final MediaType mediaType;
 
   bool isLikedBy(String? uid) => uid != null && likedBy.contains(uid);
   bool isDislikedBy(String? uid) => uid != null && dislikedBy.contains(uid);
@@ -87,6 +92,7 @@ class MovieReviewModel extends Equatable {
       'hasSpoilers': hasSpoilers,
       'isVerifiedWatch': isVerifiedWatch,
       'replyCount': replyCount,
+      'mediaType': mediaType.name,
     };
   }
 

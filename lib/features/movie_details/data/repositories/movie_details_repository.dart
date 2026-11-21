@@ -1,5 +1,6 @@
 import 'dart:collection';
 
+import '../../../../shared/models/movie_summary.dart';
 import '../../../discover/data/datasources/tmdb_remote_data_source.dart';
 import '../../../discover/data/models/movie_model.dart';
 import '../models/cast_member_model.dart';
@@ -22,38 +23,52 @@ class MovieDetailsRepository {
   final Duration cacheTtl;
   final int maxCacheEntries;
   final DateTime Function() _clock;
-  final LinkedHashMap<int, _MovieDetailsCacheEntry> _movieCache =
-      LinkedHashMap<int, _MovieDetailsCacheEntry>();
+  final LinkedHashMap<String, _MovieDetailsCacheEntry> _movieCache =
+      LinkedHashMap<String, _MovieDetailsCacheEntry>();
 
-  _MovieDetailsCacheEntry _entryFor(int movieId) {
-    final existing = _movieCache.remove(movieId);
+  _MovieDetailsCacheEntry _entryFor(
+    int movieId, {
+    MediaType mediaType = MediaType.movie,
+  }) {
+    final cacheKey = '${mediaType.name}:$movieId';
+    final existing = _movieCache.remove(cacheKey);
     if (existing != null && !_clock().isAfter(existing.expiresAt)) {
-      _movieCache[movieId] = existing;
+      _movieCache[cacheKey] = existing;
       return existing;
     }
     final created = _MovieDetailsCacheEntry(
       expiresAt: _clock().add(cacheTtl),
     );
-    _movieCache[movieId] = created;
+    _movieCache[cacheKey] = created;
     if (_movieCache.length > maxCacheEntries) {
       _movieCache.remove(_movieCache.keys.first);
     }
     return created;
   }
 
-  Future<MovieDetailsModel> getMovieDetails(int movieId) async {
-    final entry = _entryFor(movieId);
+  Future<MovieDetailsModel> getMovieDetails(
+    int movieId, {
+    MediaType mediaType = MediaType.movie,
+  }) async {
+    final entry = _entryFor(movieId, mediaType: mediaType);
     if (entry.details != null) return entry.details!;
-    final json = await _remoteDataSource.getMovieDetailsJson(movieId);
-    final details = MovieDetailsModel.fromJson(json);
+    final json = mediaType == MediaType.tv
+        ? await _remoteDataSource.getTvDetailsJson(movieId)
+        : await _remoteDataSource.getMovieDetailsJson(movieId);
+    final details = MovieDetailsModel.fromJson(json, mediaType: mediaType);
     entry.details = details;
     return details;
   }
 
-  Future<List<CastMemberModel>> getMovieCast(int movieId) async {
-    final entry = _entryFor(movieId);
+  Future<List<CastMemberModel>> getMovieCast(
+    int movieId, {
+    MediaType mediaType = MediaType.movie,
+  }) async {
+    final entry = _entryFor(movieId, mediaType: mediaType);
     if (entry.cast != null) return entry.cast!;
-    final json = await _remoteDataSource.getMovieCreditsJson(movieId);
+    final json = mediaType == MediaType.tv
+        ? await _remoteDataSource.getTvCreditsJson(movieId)
+        : await _remoteDataSource.getMovieCreditsJson(movieId);
     final rawCast = json['cast'];
     if (rawCast is! List) return const [];
     final cast = rawCast
@@ -66,10 +81,15 @@ class MovieDetailsRepository {
     return cast;
   }
 
-  Future<MovieVideoModel?> getMovieTrailer(int movieId) async {
-    final entry = _entryFor(movieId);
+  Future<MovieVideoModel?> getMovieTrailer(
+    int movieId, {
+    MediaType mediaType = MediaType.movie,
+  }) async {
+    final entry = _entryFor(movieId, mediaType: mediaType);
     if (entry.hasTrailer) return entry.trailer;
-    final json = await _remoteDataSource.getMovieVideosJson(movieId);
+    final json = mediaType == MediaType.tv
+        ? await _remoteDataSource.getTvVideosJson(movieId)
+        : await _remoteDataSource.getMovieVideosJson(movieId);
     final rawResults = json['results'];
     if (rawResults is! List) {
       entry
@@ -107,19 +127,29 @@ class MovieDetailsRepository {
     return selected;
   }
 
-  Future<List<MovieModel>> getSimilarMovies(int movieId) async {
-    final entry = _entryFor(movieId);
+  Future<List<MovieModel>> getSimilarMovies(
+    int movieId, {
+    MediaType mediaType = MediaType.movie,
+  }) async {
+    final entry = _entryFor(movieId, mediaType: mediaType);
     if (entry.similarMovies != null) return entry.similarMovies!;
-    final response = await _remoteDataSource.getMovieRecommendations(movieId);
+    final response = mediaType == MediaType.tv
+        ? await _remoteDataSource.getTvRecommendations(movieId)
+        : await _remoteDataSource.getMovieRecommendations(movieId);
     final list = response.results.take(10).toList();
     entry.similarMovies = list;
     return list;
   }
 
-  Future<List<WatchProviderModel>> getWatchProviders(int movieId) async {
-    final entry = _entryFor(movieId);
+  Future<List<WatchProviderModel>> getWatchProviders(
+    int movieId, {
+    MediaType mediaType = MediaType.movie,
+  }) async {
+    final entry = _entryFor(movieId, mediaType: mediaType);
     if (entry.watchProviders != null) return entry.watchProviders!;
-    final json = await _remoteDataSource.getMovieWatchProvidersJson(movieId);
+    final json = mediaType == MediaType.tv
+        ? await _remoteDataSource.getTvWatchProvidersJson(movieId)
+        : await _remoteDataSource.getMovieWatchProvidersJson(movieId);
     final results = json['results'];
     if (results is! Map || results.isEmpty) {
       entry.watchProviders = const [];

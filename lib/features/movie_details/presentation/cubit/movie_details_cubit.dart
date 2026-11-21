@@ -15,7 +15,10 @@ class MovieDetailsCubit extends Cubit<MovieDetailsState> {
 
   final MovieDetailsRepository _repository;
 
-  Future<void> loadMovie(int movieId) async {
+  Future<void> loadMovie(
+    int movieId, {
+    MediaType mediaType = MediaType.movie,
+  }) async {
     emit(
       state.copyWith(
         status: MovieDetailsStatus.loading,
@@ -35,29 +38,44 @@ class MovieDetailsCubit extends Cubit<MovieDetailsState> {
       await Future.wait([
         () async {
           try {
-            details = await _repository.getMovieDetails(movieId);
+            details = await _repository.getMovieDetails(
+              movieId,
+              mediaType: mediaType,
+            );
           } catch (e) {
             detailsError = e;
           }
         }(),
         () async {
           try {
-            cast = await _repository.getMovieCast(movieId);
+            cast = await _repository.getMovieCast(
+              movieId,
+              mediaType: mediaType,
+            );
           } catch (_) {}
         }(),
         () async {
           try {
-            trailer = await _repository.getMovieTrailer(movieId);
+            trailer = await _repository.getMovieTrailer(
+              movieId,
+              mediaType: mediaType,
+            );
           } catch (_) {}
         }(),
         () async {
           try {
-            similarMovies = await _repository.getSimilarMovies(movieId);
+            similarMovies = await _repository.getSimilarMovies(
+              movieId,
+              mediaType: mediaType,
+            );
           } catch (_) {}
         }(),
         () async {
           try {
-            watchProviders = await _repository.getWatchProviders(movieId);
+            watchProviders = await _repository.getWatchProviders(
+              movieId,
+              mediaType: mediaType,
+            );
           } catch (_) {}
         }(),
       ]);

@@ -237,6 +237,108 @@ class AiChatRepository {
     return _generateText(body: body, key: key);
   }
 
+  /// Uses Gemini to suggest tailored movie titles based on the user's watchlist.
+  /// Returns an empty list if Gemini is unconfigured or unavailable.
+  Future<List<({String title, String? year})>> recommendMovieTitles({
+    required List<WatchlistMovieModel> watchlist,
+    List<String> excludeTitles = const [],
+    int count = 8,
+  }) async {
+    final key = (apiKey ?? ApiConstants.geminiApiKey).trim();
+    if (key.isEmpty || watchlist.isEmpty) return const [];
+
+    final loved = watchlist
+        .where((m) => (m.userRating ?? 0) >= 4)
+        .take(10)
+        .map((m) => '${m.title} (${m.userRating}/5)')
+        .toList();
+    final wantList = watchlist
+        .where((m) => !m.isWatched)
+        .take(10)
+        .map((m) => m.title)
+        .toList();
+    final watchedOther = watchlist
+        .where((m) => m.isWatched && (m.userRating == null || m.userRating! < 4))
+        .take(8)
+        .map((m) => m.title)
+        .toList();
+
+    final promptBuffer = StringBuffer()
+      ..writeln('Analyze this user\'s movie taste and recommend $count movies they have NOT seen yet.');
+    if (loved.isNotEmpty) {
+      promptBuffer.writeln('Highly rated: ${loved.join(', ')}');
+    }
+    if (wantList.isNotEmpty) {
+      promptBuffer.writeln('Want to Watch: ${wantList.join(', ')}');
+    }
+    if (watchedOther.isNotEmpty) {
+      promptBuffer.writeln('Also watched: ${watchedOther.join(', ')}');
+    }
+    final allWatchlistTitles = watchlist.take(30).map((m) => m.title).toList();
+    promptBuffer.writeln(
+      'Do NOT recommend any of these: ${[...allWatchlistTitles, ...excludeTitles].join(', ')}.',
+    );
+    promptBuffer.writeln(
+      'Respond ONLY with a valid JSON array of objects like [{"title":"Movie Name","year":"2019"}]. No markdown or extra text.',
+    );
+
+    try {
+      final raw = await _generateText(
+        key: key,
+        body: {
+          'systemInstruction': {
+            'parts': [
+              {
+                'text':
+                    'You are CineList\'s recommendation engine. Output strictly a raw JSON array of {"title": string, "year": string} objects with no markdown fences.',
+              },
+            ],
+          },
+          'contents': [
+            {
+              'role': 'user',
+              'parts': [
+                {'text': promptBuffer.toString()},
+              ],
+            },
+          ],
+          'generationConfig': {'temperature': 0.85, 'maxOutputTokens': 512},
+        },
+      );
+
+      var cleaned = raw.trim();
+      if (cleaned.startsWith('```')) {
+        cleaned = cleaned
+            .replaceFirst(RegExp(r'^```(?:json)?\s*'), '')
+            .replaceFirst(RegExp(r'\s*```$'), '')
+            .trim();
+      }
+      final start = cleaned.indexOf('[');
+      final end = cleaned.lastIndexOf(']');
+      if (start == -1 || end <= start) return const [];
+
+      final decoded = jsonDecode(cleaned.substring(start, end + 1));
+      if (decoded is! List) return const [];
+
+      final picks = <({String title, String? year})>[];
+      for (final item in decoded) {
+        if (item is Map) {
+          final title = (item['title'] as String?)?.trim() ?? '';
+          final year = item['year']?.toString().trim();
+          if (title.isNotEmpty) {
+            picks.add((
+              title: title,
+              year: (year != null && year.isNotEmpty) ? year : null,
+            ));
+          }
+        }
+      }
+      return picks;
+    } catch (_) {
+      return const [];
+    }
+  }
+
   Future<String> _generateText({
     required Map<String, dynamic> body,
     required String key,

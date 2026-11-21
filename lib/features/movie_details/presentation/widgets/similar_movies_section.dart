@@ -41,6 +41,7 @@ class SimilarMoviesSection extends StatelessWidget {
                     movieId: movie.id,
                     initialMovie: movie,
                     heroTag: heroTag,
+                    mediaType: movie.mediaType,
                   );
                 },
               );

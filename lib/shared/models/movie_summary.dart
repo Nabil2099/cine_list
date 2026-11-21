@@ -1,6 +1,16 @@
 import 'package:equatable/equatable.dart';
 
-/// Lightweight shared movie summary used across Discover, Details, and Watchlist.
+/// Media type for TMDB items (movies vs. TV series such as Anime TV shows).
+enum MediaType {
+  movie,
+  tv;
+
+  static MediaType fromString(String? raw) {
+    return raw == 'tv' ? MediaType.tv : MediaType.movie;
+  }
+}
+
+/// Lightweight shared movie/series summary used across Discover, Details, and Watchlist.
 class MovieSummary extends Equatable {
   const MovieSummary({
     required this.id,
@@ -11,6 +21,7 @@ class MovieSummary extends Equatable {
     this.voteAverage = 0.0,
     this.overview = '',
     this.genreIds = const [],
+    this.mediaType = MediaType.movie,
   });
 
   final int id;
@@ -21,6 +32,7 @@ class MovieSummary extends Equatable {
   final double voteAverage;
   final String overview;
   final List<int> genreIds;
+  final MediaType mediaType;
 
   @override
   List<Object?> get props => [
@@ -32,5 +44,6 @@ class MovieSummary extends Equatable {
     voteAverage,
     overview,
     genreIds,
+    mediaType,
   ];
 }

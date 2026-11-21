@@ -147,6 +147,30 @@ class _MovieCardState extends State<MovieCard> {
                       filled: true,
                     ),
                   ),
+                  if (widget.movie.mediaType == MediaType.tv)
+                    Positioned(
+                      bottom: inset,
+                      right: inset,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isCompact ? 5 : 6,
+                          vertical: isCompact ? 2 : 2.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.pacificBlue.withValues(alpha: 0.9),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'TV',
+                          style: TextStyle(
+                            color: AppColors.black,
+                            fontSize: isCompact ? 8.5 : 9.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                    ),
                   if (_upcomingBadge case final badge?)
                     Positioned(
                       bottom: inset,

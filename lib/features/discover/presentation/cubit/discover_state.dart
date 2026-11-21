@@ -10,6 +10,7 @@ class DiscoverState extends Equatable {
     this.status = DiscoverStatus.initial,
     this.selectedCategory = DiscoverCategory.trending,
     this.selectedGenreId,
+    this.animeFilter = AnimeMediaFilter.all,
     this.movies = const [],
     this.searchQuery = '',
     this.currentPage = 1,
@@ -22,6 +23,7 @@ class DiscoverState extends Equatable {
   final DiscoverStatus status;
   final DiscoverCategory selectedCategory;
   final int? selectedGenreId;
+  final AnimeMediaFilter animeFilter;
   final List<MovieSummary> movies;
   final String searchQuery;
   final int currentPage;
@@ -37,6 +39,7 @@ class DiscoverState extends Equatable {
     DiscoverCategory? selectedCategory,
     int? selectedGenreId,
     bool clearGenre = false,
+    AnimeMediaFilter? animeFilter,
     List<MovieSummary>? movies,
     String? searchQuery,
     int? currentPage,
@@ -52,6 +55,7 @@ class DiscoverState extends Equatable {
       selectedGenreId: clearGenre
           ? null
           : (selectedGenreId ?? this.selectedGenreId),
+      animeFilter: animeFilter ?? this.animeFilter,
       movies: movies ?? this.movies,
       searchQuery: searchQuery ?? this.searchQuery,
       currentPage: currentPage ?? this.currentPage,
@@ -67,6 +71,7 @@ class DiscoverState extends Equatable {
     status,
     selectedCategory,
     selectedGenreId,
+    animeFilter,
     movies,
     searchQuery,
     currentPage,

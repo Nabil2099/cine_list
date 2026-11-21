@@ -36,6 +36,15 @@ final class DiscoverGenreSelected extends DiscoverFeedLoadEvent {
   List<Object?> get props => [genreId];
 }
 
+final class DiscoverAnimeFilterSelected extends DiscoverFeedLoadEvent {
+  const DiscoverAnimeFilterSelected(this.filter);
+
+  final AnimeMediaFilter filter;
+
+  @override
+  List<Object?> get props => [filter];
+}
+
 final class DiscoverSearchChanged extends DiscoverFeedLoadEvent {
   const DiscoverSearchChanged(this.query);
 

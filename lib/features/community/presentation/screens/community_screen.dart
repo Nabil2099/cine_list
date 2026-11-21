@@ -53,7 +53,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
         id: review.movieId,
         title: review.movieTitle,
         posterPath: review.posterPath,
+        mediaType: review.mediaType,
       ),
+      mediaType: review.mediaType,
     );
   }
 

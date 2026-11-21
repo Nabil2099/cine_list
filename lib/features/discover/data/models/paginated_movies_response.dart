@@ -1,8 +1,9 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../shared/models/movie_summary.dart';
 import 'movie_model.dart';
 
-/// Paginated TMDB movie list response.
+/// Paginated TMDB movie/series list response.
 class PaginatedMoviesResponse extends Equatable {
   const PaginatedMoviesResponse({
     required this.page,
@@ -10,12 +11,20 @@ class PaginatedMoviesResponse extends Equatable {
     required this.results,
   });
 
-  factory PaginatedMoviesResponse.fromJson(Map<String, dynamic> json) {
+  factory PaginatedMoviesResponse.fromJson(
+    Map<String, dynamic> json, {
+    MediaType? mediaType,
+  }) {
     final rawResults = json['results'];
     final movies = rawResults is List
         ? rawResults
               .whereType<Map>()
-              .map((e) => MovieModel.fromJson(Map<String, dynamic>.from(e)))
+              .map(
+                (e) => MovieModel.fromJson(
+                  Map<String, dynamic>.from(e),
+                  mediaType: mediaType,
+                ),
+              )
               .where((m) => m.id > 0)
               .toList()
         : const <MovieModel>[];

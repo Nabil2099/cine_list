@@ -78,7 +78,9 @@ abstract final class ApiConstants {
   static const String nowPlayingMovies = '/movie/now_playing';
   static const String upcomingMovies = '/movie/upcoming';
   static const String discoverMovies = '/discover/movie';
+  static const String discoverTv = '/discover/tv';
   static const String searchMovies = '/search/movie';
+  static const String searchTv = '/search/tv';
 
   static String movieDetails(int movieId) => '/movie/$movieId';
   static String movieCredits(int movieId) => '/movie/$movieId/credits';
@@ -90,6 +92,12 @@ abstract final class ApiConstants {
       '/movie/$movieId/recommendations';
   static String movieWatchProviders(int movieId) =>
       '/movie/$movieId/watch/providers';
+
+  static String tvDetails(int tvId) => '/tv/$tvId';
+  static String tvCredits(int tvId) => '/tv/$tvId/credits';
+  static String tvVideos(int tvId) => '/tv/$tvId/videos';
+  static String tvRecommendations(int tvId) => '/tv/$tvId/recommendations';
+  static String tvWatchProviders(int tvId) => '/tv/$tvId/watch/providers';
 
   static bool get hasCredentials =>
       tmdbApiKey.trim().isNotEmpty || tmdbAccessToken.trim().isNotEmpty;

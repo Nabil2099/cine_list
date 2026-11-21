@@ -23,6 +23,7 @@ class CategoryTabs extends StatelessWidget {
       child: Row(
         children: DiscoverCategory.values.map((category) {
           final isSelected = !isSearchActive && category == selectedCategory;
+          final isAnime = category == DiscoverCategory.anime;
           return Padding(
             padding: const EdgeInsets.only(right: 10),
             child: InkWell(
@@ -31,29 +32,52 @@ class CategoryTabs extends StatelessWidget {
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
+                  horizontal: 16,
                   vertical: 9,
                 ),
                 decoration: BoxDecoration(
                   color: isSelected
                       ? AppColors.pacificBlue
+                      : isAnime
+                      ? AppColors.khakiBeige.withValues(alpha: 0.14)
                       : AppColors.surfaceCard,
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(
                     color: isSelected
                         ? AppColors.pacificBlue
+                        : isAnime
+                        ? AppColors.khakiBeige.withValues(alpha: 0.55)
                         : AppColors.surfaceBorder,
                   ),
                 ),
-                child: Text(
-                  category.label,
-                  style: TextStyle(
-                    color: isSelected
-                        ? AppColors.black
-                        : AppColors.textSecondary,
-                    fontSize: 13.5,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isAnime) ...[
+                      Icon(
+                        Icons.auto_awesome_rounded,
+                        size: 14,
+                        color: isSelected
+                            ? AppColors.black
+                            : AppColors.khakiBeige,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Text(
+                      category.label,
+                      style: TextStyle(
+                        color: isSelected
+                            ? AppColors.black
+                            : isAnime
+                            ? AppColors.khakiBeige
+                            : AppColors.textSecondary,
+                        fontSize: 13.5,
+                        fontWeight: isSelected || isAnime
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

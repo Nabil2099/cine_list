@@ -1,10 +1,12 @@
 import 'package:dio/dio.dart';
 
 import '../datasources/tmdb_remote_data_source.dart';
+import '../models/movie_model.dart';
 import '../models/paginated_movies_response.dart';
 
 enum DiscoverCategory {
   trending('trending', 'Trending'),
+  anime('anime', 'Anime'),
   nowPlaying('now_playing', 'Now Playing'),
   upcoming('upcoming', 'Upcoming'),
   popular('popular', 'Popular'),
@@ -21,6 +23,16 @@ enum DiscoverCategory {
       orElse: () => DiscoverCategory.trending,
     );
   }
+}
+
+enum AnimeMediaFilter {
+  all('All'),
+  series('Series'),
+  movies('Movies');
+
+  const AnimeMediaFilter(this.label);
+
+  final String label;
 }
 
 class DiscoverGenre {
@@ -85,7 +97,71 @@ class DiscoverRepository {
         await _remoteDataSource.getPopularMovies(page: page),
       DiscoverCategory.topRated =>
         await _remoteDataSource.getTopRatedMovies(page: page),
+      DiscoverCategory.anime => await fetchAnime(
+        filter: AnimeMediaFilter.all,
+        page: page,
+        forceRefresh: forceRefresh,
+      ),
     };
+    _writeCache(key, response);
+    return response;
+  }
+
+  Future<PaginatedMoviesResponse> fetchAnime({
+    required AnimeMediaFilter filter,
+    int? genreId,
+    int page = 1,
+    bool forceRefresh = false,
+  }) async {
+    if (genreId == DiscoverGenre.arabicGenreId) {
+      return const PaginatedMoviesResponse(
+        page: 1,
+        totalPages: 1,
+        results: [],
+      );
+    }
+    final key = 'anime:${filter.name}:${genreId ?? 'all'}:$page';
+    if (!forceRefresh) {
+      final cached = _readCache(key);
+      if (cached != null) return cached;
+    }
+
+    final PaginatedMoviesResponse response;
+    switch (filter) {
+      case AnimeMediaFilter.series:
+        response = await _remoteDataSource.discoverAnimeSeries(
+          genreId: genreId,
+          page: page,
+        );
+      case AnimeMediaFilter.movies:
+        response = await _remoteDataSource.discoverAnimeMovies(
+          genreId: genreId,
+          page: page,
+        );
+      case AnimeMediaFilter.all:
+        final pages = await Future.wait([
+          _remoteDataSource.discoverAnimeSeries(genreId: genreId, page: page),
+          _remoteDataSource.discoverAnimeMovies(genreId: genreId, page: page),
+        ]);
+        final seriesList = pages[0].results;
+        final moviesList = pages[1].results;
+        final merged = <MovieModel>[];
+        final maxLen = seriesList.length > moviesList.length
+            ? seriesList.length
+            : moviesList.length;
+        for (var i = 0; i < maxLen; i++) {
+          if (i < seriesList.length) merged.add(seriesList[i]);
+          if (i < moviesList.length) merged.add(moviesList[i]);
+        }
+        final totalPages = pages[0].totalPages > pages[1].totalPages
+            ? pages[0].totalPages
+            : pages[1].totalPages;
+        response = PaginatedMoviesResponse(
+          page: page,
+          totalPages: totalPages,
+          results: merged,
+        );
+    }
     _writeCache(key, response);
     return response;
   }

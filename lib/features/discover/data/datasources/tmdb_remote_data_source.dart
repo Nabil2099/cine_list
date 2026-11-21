@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/network/dio_client.dart';
+import '../../../../shared/models/movie_summary.dart';
 import '../models/paginated_movies_response.dart';
 
 /// Remote data source communicating with TMDB REST endpoints.
@@ -205,6 +206,90 @@ class TmdbRemoteDataSource {
       queryParameters: {'page': page, 'language': 'en-US'},
     );
     return PaginatedMoviesResponse.fromJson(data);
+  }
+
+  Future<PaginatedMoviesResponse> getMovieWatchProvidersJsonRaw(
+    int movieId,
+  ) async {
+    return PaginatedMoviesResponse(page: 1, totalPages: 1, results: const []);
+  }
+
+  Future<PaginatedMoviesResponse> discoverAnimeMovies({
+    int? genreId,
+    int page = 1,
+  }) async {
+    final genresParam =
+        (genreId != null && genreId > 0 && genreId != 16)
+        ? '16,$genreId'
+        : '16';
+    final data = await _dioClient.get(
+      ApiConstants.discoverMovies,
+      queryParameters: {
+        'with_genres': genresParam,
+        'with_original_language': 'ja',
+        'sort_by': 'popularity.desc',
+        'page': page,
+        'language': 'en-US',
+      },
+    );
+    return PaginatedMoviesResponse.fromJson(data, mediaType: MediaType.movie);
+  }
+
+  Future<PaginatedMoviesResponse> discoverAnimeSeries({
+    int? genreId,
+    int page = 1,
+  }) async {
+    final genresParam =
+        (genreId != null && genreId > 0 && genreId != 16)
+        ? '16,$genreId'
+        : '16';
+    final data = await _dioClient.get(
+      ApiConstants.discoverTv,
+      queryParameters: {
+        'with_genres': genresParam,
+        'with_original_language': 'ja',
+        'sort_by': 'popularity.desc',
+        'page': page,
+        'language': 'en-US',
+      },
+    );
+    return PaginatedMoviesResponse.fromJson(data, mediaType: MediaType.tv);
+  }
+
+  Future<Map<String, dynamic>> getTvDetailsJson(int tvId) async {
+    return _dioClient.get(
+      ApiConstants.tvDetails(tvId),
+      queryParameters: {'language': 'en-US'},
+    );
+  }
+
+  Future<Map<String, dynamic>> getTvCreditsJson(int tvId) async {
+    return _dioClient.get(
+      ApiConstants.tvCredits(tvId),
+      queryParameters: {'language': 'en-US'},
+    );
+  }
+
+  Future<Map<String, dynamic>> getTvVideosJson(int tvId) async {
+    return _dioClient.get(
+      ApiConstants.tvVideos(tvId),
+      queryParameters: {'language': 'en-US'},
+    );
+  }
+
+  Future<PaginatedMoviesResponse> getTvRecommendations(
+    int tvId, {
+    int page = 1,
+  }) async {
+    final data = await _dioClient.get(
+      ApiConstants.tvRecommendations(tvId),
+      queryParameters: {'page': page, 'language': 'en-US'},
+    );
+    return PaginatedMoviesResponse.fromJson(data, mediaType: MediaType.tv);
+  }
+
+  Future<Map<String, dynamic>> getTvWatchProvidersJson(int tvId) async {
+    return _dioClient.get(ApiConstants.tvWatchProviders(tvId));
   }
 
   Future<Map<String, dynamic>> getMovieWatchProvidersJson(int movieId) async {

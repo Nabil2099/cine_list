@@ -37,6 +37,7 @@ class DiscoverScreen extends StatefulWidget {
 class _DiscoverScreenState extends State<DiscoverScreen> {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
+  int _exploreVisibleLimit = _exploreBatchSize;
 
   @override
   void initState() {
@@ -53,6 +54,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     super.dispose();
   }
 
+  static const int _exploreBatchSize = 15;
+
+  static int _exploreCountForState(DiscoverState state) {
+    final showFeaturedAndCarousel =
+        !state.isSearching && state.movies.length > 4;
+    return showFeaturedAndCarousel
+        ? (state.movies.length - 6).clamp(0, state.movies.length)
+        : state.movies.length;
+  }
+
   void _onScroll() {
     if (!_scrollController.hasClients) return;
     final pos = _scrollController.position;
@@ -61,7 +72,20 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final state = bloc.state;
     if (state.hasMore &&
         !state.isLoadingMore &&
-        state.status == DiscoverStatus.loaded) {
+        state.status == DiscoverStatus.loaded &&
+        _exploreCountForState(state) < _exploreVisibleLimit) {
+      bloc.add(const DiscoverNextPageLoaded());
+    }
+  }
+
+  void _handleLoadMore() {
+    final bloc = context.read<DiscoverBloc>();
+    final nextLimit = _exploreVisibleLimit + _exploreBatchSize;
+    setState(() => _exploreVisibleLimit = nextLimit);
+    final state = bloc.state;
+    if (state.hasMore &&
+        !state.isLoadingMore &&
+        _exploreCountForState(state) < nextLimit) {
       bloc.add(const DiscoverNextPageLoaded());
     }
   }
@@ -234,8 +258,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     return BlocListener<DiscoverBloc, DiscoverState>(
       listenWhen: (prev, curr) =>
           prev.status != curr.status ||
-          prev.movies.length != curr.movies.length,
+          prev.movies.length != curr.movies.length ||
+          prev.selectedCategory != curr.selectedCategory ||
+          prev.selectedGenreId != curr.selectedGenreId ||
+          prev.animeFilter != curr.animeFilter ||
+          prev.searchQuery != curr.searchQuery,
       listener: (context, discoverState) {
+        if (discoverState.status == DiscoverStatus.loading &&
+            _exploreVisibleLimit != _exploreBatchSize) {
+          setState(() => _exploreVisibleLimit = _exploreBatchSize);
+        }
         if (discoverState.status == DiscoverStatus.loaded) {
           _maybeLoadMoreIfViewportShort();
         }
@@ -430,8 +462,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
                     return _DiscoverLoadedSlivers(
                       state: state,
+                      exploreVisibleLimit: _exploreVisibleLimit,
                       gridColumnsForWidth: _gridColumnsForWidth,
                       onMovieTap: _openMovieDetails,
+                      onLoadMore: _handleLoadMore,
                     );
                   },
                 ),
@@ -732,13 +766,17 @@ class _GenreSheetChip extends StatelessWidget {
 class _DiscoverLoadedSlivers extends StatelessWidget {
   const _DiscoverLoadedSlivers({
     required this.state,
+    required this.exploreVisibleLimit,
     required this.gridColumnsForWidth,
     required this.onMovieTap,
+    required this.onLoadMore,
   });
 
   final DiscoverState state;
+  final int exploreVisibleLimit;
   final int Function(double width) gridColumnsForWidth;
   final void Function(MovieSummary movie, {String? heroTag}) onMovieTap;
+  final VoidCallback onLoadMore;
 
   @override
   Widget build(BuildContext context) {
@@ -750,9 +788,12 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
     final carouselMovies = showFeaturedAndCarousel
         ? movies.skip(1).take(5).toList()
         : const <MovieSummary>[];
-    final gridMovies = showFeaturedAndCarousel
+    final allGridMovies = showFeaturedAndCarousel
         ? movies.skip(6).toList()
         : movies;
+    final gridMovies = allGridMovies.take(exploreVisibleLimit).toList();
+    final hasBufferedOrMore =
+        state.hasMore || allGridMovies.length > gridMovies.length;
 
     String? activeGenreLabel;
     if (state.selectedGenreId != null) {
@@ -893,12 +934,18 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
             ),
           ],
           if ((state.errorMessage != null && movies.isNotEmpty) ||
-              state.isLoadingMore)
+              state.isLoadingMore ||
+              (hasBufferedOrMore &&
+                  gridMovies.length >= exploreVisibleLimit))
             SliverLayoutBuilder(
               builder: (context, constraints) {
                 final columns = gridColumnsForWidth(
                   constraints.crossAxisExtent,
                 );
+                final showLoadMoreButton =
+                    !state.isLoadingMore &&
+                    hasBufferedOrMore &&
+                    gridMovies.length >= exploreVisibleLimit;
                 return SliverToBoxAdapter(
                   child: Column(
                     children: [
@@ -914,9 +961,7 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
                         ),
                         const SizedBox(height: 10),
                         OutlinedButton.icon(
-                          onPressed: () => context.read<DiscoverBloc>().add(
-                            const DiscoverNextPageLoaded(),
-                          ),
+                          onPressed: onLoadMore,
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppColors.pacificBlue,
                             side: const BorderSide(
@@ -936,6 +981,31 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
                           columns: columns,
                           spacing: isWide ? 14 : 10,
                           aspectRatio: isWide ? 0.57 : 0.55,
+                        ),
+                      ] else if (showLoadMoreButton) ...[
+                        const SizedBox(height: 22),
+                        Center(
+                          child: OutlinedButton.icon(
+                            onPressed: onLoadMore,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.pacificBlue,
+                              side: const BorderSide(
+                                color: AppColors.pacificBlue,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24),
+                              ),
+                            ),
+                            icon: const Icon(Icons.expand_more_rounded),
+                            label: const Text(
+                              'Load More Movies',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
                         ),
                       ],
                     ],

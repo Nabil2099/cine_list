@@ -551,6 +551,62 @@ class _ChatBubble extends StatelessWidget {
     return picks;
   }
 
+  void _showEnlargedImage(
+    BuildContext context,
+    ImageProvider<Object> imageProvider,
+  ) {
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.9),
+      builder: (dialogContext) => Dialog.fullscreen(
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => Navigator.of(dialogContext).pop(),
+                child: InteractiveViewer(
+                  minScale: 0.8,
+                  maxScale: 4.0,
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image(
+                          image: imageProvider,
+                          fit: BoxFit.contain,
+                          gaplessPlayback: true,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 16,
+              right: 16,
+              child: SafeArea(
+                child: IconButton.filled(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppColors.surfaceElevated.withValues(
+                      alpha: 0.9,
+                    ),
+                    foregroundColor: AppColors.textPrimary,
+                  ),
+                  icon: const Icon(Icons.close_rounded),
+                  tooltip: 'Close preview',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isUser = message.isUser;
@@ -558,6 +614,9 @@ class _ChatBubble extends StatelessWidget {
     final picks = (!isUser && !isError && !isStreaming)
         ? _extractPicks(message.text)
         : const <AiRecommendedPick>[];
+    final imgProvider = message.hasImage
+        ? DecodedImageCache.getOrDecode(message.imageBase64)
+        : null;
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
@@ -576,103 +635,149 @@ class _ChatBubble extends StatelessWidget {
           constraints: BoxConstraints(
             maxWidth: MediaQuery.sizeOf(context).width * 0.84,
           ),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-            decoration: BoxDecoration(
-              color: isUser
-                  ? AppColors.pacificBlue
-                  : isError
-                  ? AppColors.error.withValues(alpha: 0.14)
-                  : AppColors.surfaceCard,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(18),
-                topRight: const Radius.circular(18),
-                bottomLeft: Radius.circular(isUser ? 18 : 4),
-                bottomRight: Radius.circular(isUser ? 4 : 18),
-              ),
-              border: isUser
-                  ? null
-                  : Border.all(
-                      color: isError
-                          ? AppColors.error.withValues(alpha: 0.5)
-                          : AppColors.surfaceBorder,
+          child: Column(
+            crossAxisAlignment: isUser
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+            children: [
+              if (imgProvider != null) ...[
+                GestureDetector(
+                  onTap: () => _showEnlargedImage(context, imgProvider),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.pacificBlue.withValues(alpha: 0.55),
+                        width: 1.5,
+                      ),
                     ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (!isUser && !isError) ...[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Row(
-                        mainAxisSize: MainAxisSize.min,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12.5),
+                      child: Stack(
                         children: [
-                          Icon(
-                            Icons.auto_awesome_rounded,
-                            size: 13,
-                            color: AppColors.pacificBlue,
+                          Image(
+                            image: imgProvider,
+                            width: 72,
+                            height: 72,
+                            fit: BoxFit.cover,
+                            gaplessPlayback: true,
+                            errorBuilder: (_, _, _) => const SizedBox.shrink(),
                           ),
-                          SizedBox(width: 5),
-                          Text(
-                            'CineList AI',
-                            style: TextStyle(
-                              color: AppColors.pacificBlue,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
+                          Positioned(
+                            right: 4,
+                            bottom: 4,
+                            child: Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.65),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Icon(
+                                Icons.zoom_out_map_rounded,
+                                size: 11,
+                                color: AppColors.textPrimary,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      InkWell(
-                        onTap: () {
-                          Clipboard.setData(ClipboardData(text: message.text));
-                          ScaffoldMessenger.of(context)
-                            ..hideCurrentSnackBar()
-                            ..showSnackBar(
-                              const SnackBar(
-                                content: Text('Copied recommendation'),
-                              ),
-                            );
-                        },
-                        borderRadius: BorderRadius.circular(8),
-                        child: const Padding(
-                          padding: EdgeInsets.all(2),
-                          child: Icon(
-                            Icons.copy_rounded,
-                            size: 14,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                ],
-                if (message.hasImage) ...[
-                  if (DecodedImageCache.getOrDecode(message.imageBase64)
-                      case final imgProvider?)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image(
-                        image: imgProvider,
-                        width: 180,
-                        height: 180,
-                        fit: BoxFit.cover,
-                        gaplessPlayback: true,
-                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                      ),
                     ),
-                  const SizedBox(height: 8),
-                ],
-                FormattedChatText(
-                  text: message.text,
-                  baseColor: isUser ? AppColors.black : AppColors.textPrimary,
-                  boldColor: isUser ? AppColors.black : AppColors.khakiBeige,
+                  ),
                 ),
-                if (picks.isNotEmpty) AiPickCardsRow(picks: picks),
+                const SizedBox(height: 6),
               ],
-            ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 15,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: isUser
+                      ? AppColors.pacificBlue
+                      : isError
+                      ? AppColors.error.withValues(alpha: 0.14)
+                      : AppColors.surfaceCard,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(18),
+                    topRight: const Radius.circular(18),
+                    bottomLeft: Radius.circular(isUser ? 18 : 4),
+                    bottomRight: Radius.circular(isUser ? 4 : 18),
+                  ),
+                  border: isUser
+                      ? null
+                      : Border.all(
+                          color: isError
+                              ? AppColors.error.withValues(alpha: 0.5)
+                              : AppColors.surfaceBorder,
+                        ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (!isUser && !isError) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.auto_awesome_rounded,
+                                size: 13,
+                                color: AppColors.pacificBlue,
+                              ),
+                              SizedBox(width: 5),
+                              Text(
+                                'CineList AI',
+                                style: TextStyle(
+                                  color: AppColors.pacificBlue,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          InkWell(
+                            onTap: () {
+                              Clipboard.setData(
+                                ClipboardData(text: message.text),
+                              );
+                              ScaffoldMessenger.of(context)
+                                ..hideCurrentSnackBar()
+                                ..showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Copied recommendation'),
+                                  ),
+                                );
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: const Padding(
+                              padding: EdgeInsets.all(2),
+                              child: Icon(
+                                Icons.copy_rounded,
+                                size: 14,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+                    FormattedChatText(
+                      text: message.text,
+                      baseColor: isUser
+                          ? AppColors.black
+                          : AppColors.textPrimary,
+                      boldColor: isUser
+                          ? AppColors.black
+                          : AppColors.khakiBeige,
+                    ),
+                    if (picks.isNotEmpty) AiPickCardsRow(picks: picks),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

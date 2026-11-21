@@ -19,10 +19,10 @@ import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../auth/presentation/cubit/auth_state.dart';
 import '../../../community/presentation/bloc/community_bloc.dart';
 import '../../../watchlist/presentation/cubit/watchlist_cubit.dart';
+import '../../data/repositories/discover_repository.dart';
 import '../bloc/discover_bloc.dart';
 import '../widgets/category_tabs.dart';
 import '../widgets/featured_movie_card.dart';
-import '../widgets/genre_filter_bar.dart';
 import '../widgets/movie_search_bar.dart';
 
 /// Primary Discover screen with greeting, search, categories, featured card,
@@ -80,6 +80,120 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     if (width >= AppConstants.tabletBreakpoint) return 4;
     if (width >= 360) return 3;
     return 2;
+  }
+
+  Future<void> _showGenreFilterSheet(
+    BuildContext context, {
+    required DiscoverCategory selectedCategory,
+    required int? selectedGenreId,
+  }) async {
+    final bloc = context.read<DiscoverBloc>();
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surfaceElevated,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceBorder,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.filter_alt_outlined,
+                      color: AppColors.pacificBlue,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Filter by Genre',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            'Showing ${selectedCategory.label} movies',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (selectedGenreId != null)
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(sheetContext).pop();
+                          _searchController.clear();
+                          bloc.add(const DiscoverGenreSelected(null));
+                        },
+                        child: const Text(
+                          'Reset',
+                          style: TextStyle(
+                            color: AppColors.pacificBlue,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 10,
+                  children: [
+                    _GenreSheetChip(
+                      label: 'All Genres',
+                      selected: selectedGenreId == null,
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        _searchController.clear();
+                        bloc.add(const DiscoverGenreSelected(null));
+                      },
+                    ),
+                    for (final genre in DiscoverGenre.defaults)
+                      _GenreSheetChip(
+                        label: genre.label,
+                        selected: selectedGenreId == genre.id,
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          _searchController.clear();
+                          bloc.add(DiscoverGenreSelected(genre.id));
+                        },
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -168,25 +282,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            MovieSearchBar(
-                              controller: _searchController,
-                              hasText: state.searchQuery.isNotEmpty,
-                              onChanged: (q) => context
-                                  .read<DiscoverBloc>()
-                                  .add(DiscoverSearchChanged(q)),
-                              onClear: () {
-                                _searchController.clear();
-                                context.read<DiscoverBloc>().add(
-                                  const DiscoverSearchCleared(),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 14),
                             CategoryTabs(
                               selectedCategory: state.selectedCategory,
-                              isSearchActive:
-                                  state.isSearching ||
-                                  state.selectedGenreId != null,
+                              isSearchActive: state.isSearching,
                               onSelected: (cat) {
                                 _searchController.clear();
                                 context.read<DiscoverBloc>().add(
@@ -194,16 +292,34 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                 );
                               },
                             ),
-                            const SizedBox(height: 10),
-                            GenreFilterBar(
-                              selectedGenreId: state.selectedGenreId,
-                              isSearchActive: state.isSearching,
-                              onSelected: (genreId) {
-                                _searchController.clear();
-                                context.read<DiscoverBloc>().add(
-                                  DiscoverGenreSelected(genreId),
-                                );
-                              },
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: MovieSearchBar(
+                                    controller: _searchController,
+                                    hasText: state.searchQuery.isNotEmpty,
+                                    onChanged: (q) => context
+                                        .read<DiscoverBloc>()
+                                        .add(DiscoverSearchChanged(q)),
+                                    onClear: () {
+                                      _searchController.clear();
+                                      context.read<DiscoverBloc>().add(
+                                        const DiscoverSearchCleared(),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                _GenreSortButton(
+                                  selectedGenreId: state.selectedGenreId,
+                                  onTap: () => _showGenreFilterSheet(
+                                    context,
+                                    selectedCategory: state.selectedCategory,
+                                    selectedGenreId: state.selectedGenreId,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         );
@@ -296,6 +412,8 @@ class _DiscoverHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final displayGreeting = isSignedIn ? greetingName : 'Guest';
+
     return Row(
       children: [
         if (showDrawerButton) ...[
@@ -307,109 +425,207 @@ class _DiscoverHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                isSignedIn ? 'Hi, $greetingName 👋' : 'Discover Movies',
+                'Hi, $displayGreeting 👋',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 2),
               Text(
-                isSignedIn
-                    ? 'What are we watching today?'
-                    : 'Explore films, trailers & cast',
+                'What are we watching today?',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ],
           ),
         ),
         const SizedBox(width: 8),
-        if (!isSignedIn)
-          FilledButton.icon(
-            onPressed: () => AuthGate.openAuth(context),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.pacificBlue,
-              foregroundColor: AppColors.black,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            icon: const Icon(Icons.login_rounded, size: 16),
-            label: const Text(
-              'Sign In',
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
-            ),
-          )
-        else
-          Builder(
-            builder: (context) {
-              final unreadCount = context.select<CommunityBloc, int>(
-                (b) => b.state.unreadNotificationCount,
-              );
-              return IconButton(
-                tooltip: 'Notifications',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                onPressed: () => context.push('/notifications'),
-                icon: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(9),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceCard,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: unreadCount > 0
-                              ? AppColors.error.withValues(alpha: 0.6)
-                              : AppColors.surfaceBorder,
-                        ),
-                      ),
-                      child: Icon(
-                        unreadCount > 0
-                            ? Icons.favorite_rounded
-                            : Icons.favorite_border_rounded,
+        Builder(
+          builder: (context) {
+            final unreadCount = context.select<CommunityBloc, int>(
+              (b) => b.state.unreadNotificationCount,
+            );
+            return IconButton(
+              tooltip: 'Notifications',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              onPressed: () async {
+                final allowed = await AuthGate.requireAuth(
+                  context,
+                  actionLabel: 'view notifications',
+                );
+                if (!allowed || !context.mounted) return;
+                context.push('/notifications');
+              },
+              icon: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceCard,
+                      shape: BoxShape.circle,
+                      border: Border.all(
                         color: unreadCount > 0
-                            ? AppColors.error
-                            : AppColors.khakiBeige,
-                        size: 20,
+                            ? AppColors.error.withValues(alpha: 0.6)
+                            : AppColors.surfaceBorder,
                       ),
                     ),
-                    if (unreadCount > 0)
-                      Positioned(
-                        right: -2,
-                        top: -2,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 5,
-                            vertical: 1.5,
+                    child: Icon(
+                      unreadCount > 0
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      color: unreadCount > 0
+                          ? AppColors.error
+                          : AppColors.khakiBeige,
+                      size: 20,
+                    ),
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.error,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: AppColors.black,
+                            width: 1.5,
                           ),
-                          decoration: BoxDecoration(
-                            color: AppColors.error,
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: AppColors.black,
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Text(
-                            unreadCount > 9 ? '9+' : '$unreadCount',
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w800,
-                            ),
+                        ),
+                        child: Text(
+                          unreadCount > 9 ? '9+' : '$unreadCount',
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
-                  ],
-                ),
-              );
-            },
-          ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
       ],
+    );
+  }
+}
+
+class _GenreSortButton extends StatelessWidget {
+  const _GenreSortButton({
+    required this.selectedGenreId,
+    required this.onTap,
+  });
+
+  final int? selectedGenreId;
+  final VoidCallback onTap;
+
+  String _label() {
+    if (selectedGenreId == null) return 'Sort';
+    for (final g in DiscoverGenre.defaults) {
+      if (g.id == selectedGenreId) return g.label;
+    }
+    return 'Sort';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasGenre = selectedGenreId != null;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+          decoration: BoxDecoration(
+            color: AppColors.pacificBlue.withValues(
+              alpha: hasGenre ? 0.24 : 0.14,
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: AppColors.pacificBlue.withValues(
+                alpha: hasGenre ? 0.85 : 0.65,
+              ),
+              width: 1.2,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.filter_alt_outlined,
+                size: 19,
+                color: hasGenre
+                    ? AppColors.pacificBlue
+                    : AppColors.textPrimary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _label(),
+                style: TextStyle(
+                  color: hasGenre
+                      ? AppColors.pacificBlue
+                      : AppColors.textPrimary,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GenreSheetChip extends StatelessWidget {
+  const _GenreSheetChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.pacificBlue
+              : AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected
+                ? AppColors.pacificBlue
+                : AppColors.surfaceBorder,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? AppColors.black : AppColors.textSecondary,
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -429,9 +645,7 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
   Widget build(BuildContext context) {
     final movies = state.movies;
     final showFeaturedAndCarousel =
-        !state.isSearching &&
-        state.selectedGenreId == null &&
-        movies.length > 4;
+        !state.isSearching && movies.length > 4;
 
     final featuredMovie = showFeaturedAndCarousel ? movies.first : null;
     final carouselMovies = showFeaturedAndCarousel
@@ -440,6 +654,19 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
     final gridMovies = showFeaturedAndCarousel
         ? movies.skip(7).toList()
         : movies;
+
+    String? activeGenreLabel;
+    if (state.selectedGenreId != null) {
+      for (final g in DiscoverGenre.defaults) {
+        if (g.id == state.selectedGenreId) {
+          activeGenreLabel = g.label;
+          break;
+        }
+      }
+    }
+    final carouselHeading = activeGenreLabel != null
+        ? '${state.selectedCategory.label} · $activeGenreLabel'
+        : '${state.selectedCategory.label} Now';
 
     final isWide =
         MediaQuery.sizeOf(context).width >= AppConstants.tabletBreakpoint;
@@ -468,10 +695,15 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          '${state.selectedCategory.label} Now',
-                          style: Theme.of(context).textTheme.titleLarge,
+                        Expanded(
+                          child: Text(
+                            carouselHeading,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         Text(
                           '${movies.length} titles',
                           style: Theme.of(context).textTheme.bodySmall,

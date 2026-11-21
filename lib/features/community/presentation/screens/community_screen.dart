@@ -111,7 +111,6 @@ class _CommunityScreenState extends State<CommunityScreen> {
             builder: (context, state) {
               final bloc = context.read<CommunityBloc>();
               final reviews = state.filteredReviews;
-              final followingCount = state.profile?.followingUids.length ?? 0;
               final showSpotlightSections =
                   _subview == _CommunitySubview.reviews &&
                   !state.requiresSignInToRead &&
@@ -263,55 +262,6 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                       ),
                                       const SizedBox(width: 6),
                                     ],
-                                    FilterChip(
-                                      avatar: Icon(
-                                        Icons.people_alt_outlined,
-                                        size: 15,
-                                        color: state.followingOnly
-                                            ? AppColors.khakiBeige
-                                            : AppColors.textSecondary,
-                                      ),
-                                      label: Text(
-                                        followingCount > 0
-                                            ? 'Following ($followingCount)'
-                                            : 'Following',
-                                      ),
-                                      selected: state.followingOnly,
-                                      onSelected: (_) async {
-                                        final allowed =
-                                            await AuthGate.requireAuth(
-                                              context,
-                                              actionLabel:
-                                                  'filter by critics you follow',
-                                            );
-                                        if (!allowed || !context.mounted) {
-                                          return;
-                                        }
-                                        bloc.add(
-                                          const CommunityFollowingFilterToggled(),
-                                        );
-                                      },
-                                      visualDensity: VisualDensity.compact,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                      ),
-                                      selectedColor: AppColors.khakiBeige
-                                          .withValues(alpha: 0.2),
-                                      backgroundColor: AppColors.surfaceCard,
-                                      side: BorderSide(
-                                        color: state.followingOnly
-                                            ? AppColors.khakiBeige
-                                            : AppColors.surfaceBorder,
-                                      ),
-                                      labelStyle: TextStyle(
-                                        color: state.followingOnly
-                                            ? AppColors.khakiBeige
-                                            : AppColors.textSecondary,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                      showCheckmark: false,
-                                    ),
                                   ],
                                 ),
                               ),

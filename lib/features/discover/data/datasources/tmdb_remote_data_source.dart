@@ -79,6 +79,84 @@ class TmdbRemoteDataSource {
     return PaginatedMoviesResponse.fromJson(data);
   }
 
+  static String _formatDate(DateTime dt) {
+    final y = dt.year.toString().padLeft(4, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final d = dt.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  Future<PaginatedMoviesResponse> discoverMoviesByCategoryAndGenre({
+    required String categoryKey,
+    required int genreId,
+    int page = 1,
+  }) async {
+    final isArabic = genreId == -1;
+    final now = DateTime.now();
+    final queryParams = <String, dynamic>{
+      if (isArabic)
+        'with_original_language': 'ar'
+      else
+        'with_genres': genreId,
+      'page': page,
+      'language': 'en-US',
+    };
+
+    switch (categoryKey) {
+      case 'top_rated':
+        queryParams['sort_by'] = 'vote_average.desc';
+        queryParams['vote_count.gte'] = isArabic ? 25 : 200;
+      case 'now_playing':
+        queryParams['sort_by'] = 'popularity.desc';
+        queryParams['primary_release_date.gte'] = _formatDate(
+          now.subtract(const Duration(days: 60)),
+        );
+        queryParams['primary_release_date.lte'] = _formatDate(now);
+      case 'upcoming':
+        queryParams['sort_by'] = 'popularity.desc';
+        queryParams['primary_release_date.gte'] = _formatDate(
+          now.add(const Duration(days: 1)),
+        );
+      case 'trending':
+        queryParams['sort_by'] = 'popularity.desc';
+        if (!isArabic && page == 1) {
+          final results = await Future.wait([
+            getTrendingMovies(page: 1),
+            _dioClient.get(
+              ApiConstants.discoverMovies,
+              queryParameters: queryParams,
+            ),
+          ]);
+          final trendingPage = results[0] as PaginatedMoviesResponse;
+          final discoverPage = PaginatedMoviesResponse.fromJson(
+            results[1] as Map<String, dynamic>,
+          );
+          final matchingTrending = trendingPage.results
+              .where((m) => m.genreIds.contains(genreId))
+              .toList();
+          final seenIds = {for (final m in matchingTrending) m.id};
+          final merged = [
+            ...matchingTrending,
+            ...discoverPage.results.where((m) => seenIds.add(m.id)),
+          ];
+          return PaginatedMoviesResponse(
+            page: discoverPage.page,
+            totalPages: discoverPage.totalPages,
+            results: merged,
+          );
+        }
+      case 'popular':
+      default:
+        queryParams['sort_by'] = 'popularity.desc';
+    }
+
+    final data = await _dioClient.get(
+      ApiConstants.discoverMovies,
+      queryParameters: queryParams,
+    );
+    return PaginatedMoviesResponse.fromJson(data);
+  }
+
   Future<PaginatedMoviesResponse> searchMovies({
     required String query,
     int page = 1,

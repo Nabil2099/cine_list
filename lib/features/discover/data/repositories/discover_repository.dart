@@ -92,21 +92,33 @@ class DiscoverRepository {
 
   Future<PaginatedMoviesResponse> fetchByGenre(
     int genreId, {
+    DiscoverCategory? category,
     int page = 1,
     bool forceRefresh = false,
   }) async {
-    final key = 'genre:$genreId:$page';
+    final key = category == null
+        ? 'genre:$genreId:$page'
+        : 'genre:${category.key}:$genreId:$page';
     if (!forceRefresh) {
       final cached = _readCache(key);
       if (cached != null) return cached;
     }
 
-    final response = genreId == DiscoverGenre.arabicGenreId
-        ? await _remoteDataSource.discoverArabicMovies(page: page)
-        : await _remoteDataSource.discoverMoviesByGenre(
-            genreId: genreId,
-            page: page,
-          );
+    final PaginatedMoviesResponse response;
+    if (category != null) {
+      response = await _remoteDataSource.discoverMoviesByCategoryAndGenre(
+        categoryKey: category.key,
+        genreId: genreId,
+        page: page,
+      );
+    } else if (genreId == DiscoverGenre.arabicGenreId) {
+      response = await _remoteDataSource.discoverArabicMovies(page: page);
+    } else {
+      response = await _remoteDataSource.discoverMoviesByGenre(
+        genreId: genreId,
+        page: page,
+      );
+    }
     _writeCache(key, response);
     return response;
   }

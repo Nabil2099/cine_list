@@ -65,7 +65,6 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
     Emitter<DiscoverState> emit,
   ) async {
     if (category == state.selectedCategory &&
-        state.selectedGenreId == null &&
         !state.isSearching &&
         state.status == DiscoverStatus.loaded) {
       return;
@@ -75,15 +74,24 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
     await _preferencesService?.setSelectedDiscoverCategory(category.key);
     if (emit.isDone) return;
 
+    final activeGenreId = state.selectedGenreId;
     emit(
       state.copyWith(
         selectedCategory: category,
-        clearGenre: true,
         searchQuery: '',
         clearError: true,
       ),
     );
-    await _loadCategory(category, page: 1, emit: emit);
+    if (activeGenreId != null) {
+      await _loadGenre(
+        activeGenreId,
+        category: category,
+        page: 1,
+        emit: emit,
+      );
+    } else {
+      await _loadCategory(category, page: 1, emit: emit);
+    }
   }
 
   Future<void> _selectGenre(int? genreId, Emitter<DiscoverState> emit) async {
@@ -104,7 +112,12 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
         clearError: true,
       ),
     );
-    await _loadGenre(genreId, page: 1, emit: emit);
+    await _loadGenre(
+      genreId,
+      category: state.selectedCategory,
+      page: 1,
+      emit: emit,
+    );
   }
 
   Future<void> _searchChanged(String query, Emitter<DiscoverState> emit) async {
@@ -113,7 +126,16 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
 
     if (trimmed.isEmpty) {
       _cancelOngoingSearch();
-      await _loadCategory(state.selectedCategory, page: 1, emit: emit);
+      if (state.selectedGenreId != null) {
+        await _loadGenre(
+          state.selectedGenreId!,
+          category: state.selectedCategory,
+          page: 1,
+          emit: emit,
+        );
+      } else {
+        await _loadCategory(state.selectedCategory, page: 1, emit: emit);
+      }
       return;
     }
 
@@ -126,7 +148,16 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
     if (!state.isSearching && state.searchQuery.isEmpty) return;
     _cancelOngoingSearch();
     emit(state.copyWith(searchQuery: '', clearError: true));
-    await _loadCategory(state.selectedCategory, page: 1, emit: emit);
+    if (state.selectedGenreId != null) {
+      await _loadGenre(
+        state.selectedGenreId!,
+        category: state.selectedCategory,
+        page: 1,
+        emit: emit,
+      );
+    } else {
+      await _loadCategory(state.selectedCategory, page: 1, emit: emit);
+    }
   }
 
   Future<void> _retry(Emitter<DiscoverState> emit) async {
@@ -135,6 +166,7 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
     } else if (state.selectedGenreId != null) {
       await _loadGenre(
         state.selectedGenreId!,
+        category: state.selectedCategory,
         page: 1,
         emit: emit,
         forceRefresh: true,
@@ -169,7 +201,12 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
         emit: emit,
       );
     } else if (state.selectedGenreId != null) {
-      await _loadGenre(state.selectedGenreId!, page: nextPage, emit: emit);
+      await _loadGenre(
+        state.selectedGenreId!,
+        category: state.selectedCategory,
+        page: nextPage,
+        emit: emit,
+      );
     } else {
       await _loadCategory(state.selectedCategory, page: nextPage, emit: emit);
     }
@@ -177,6 +214,7 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
 
   Future<void> _loadGenre(
     int genreId, {
+    required DiscoverCategory category,
     required int page,
     required Emitter<DiscoverState> emit,
     bool forceRefresh = false,
@@ -193,13 +231,12 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
     }
 
     try {
-      final response = forceRefresh
-          ? await _repository.fetchByGenre(
-              genreId,
-              page: page,
-              forceRefresh: true,
-            )
-          : await _repository.fetchByGenre(genreId, page: page);
+      final response = await _repository.fetchByGenre(
+        genreId,
+        category: category,
+        page: page,
+        forceRefresh: forceRefresh,
+      );
       if (requestId != _activeRequestId || emit.isDone || isClosed) return;
 
       final combined = page == 1

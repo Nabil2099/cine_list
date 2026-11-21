@@ -95,29 +95,31 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen>
         fit: StackFit.expand,
         children: [
           // Ambient breathing spotlight background
-          AnimatedBuilder(
-            animation: _loopController,
-            builder: (context, _) {
-              final pulse =
-                  0.5 + 0.5 * math.sin(_loopController.value * 2 * math.pi);
-              return DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: const Alignment(0, -0.12),
-                    radius: 0.85 + (0.12 * pulse),
-                    colors: [
-                      AppColors.pacificBlue.withValues(
-                        alpha: 0.16 + 0.08 * pulse,
-                      ),
-                      AppColors.softPeriwinkle.withValues(alpha: 0.08),
-                      AppColors.surfaceBase,
-                      AppColors.black,
-                    ],
-                    stops: const [0.0, 0.35, 0.72, 1.0],
+          RepaintBoundary(
+            child: AnimatedBuilder(
+              animation: _loopController,
+              builder: (context, _) {
+                final pulse =
+                    0.5 + 0.5 * math.sin(_loopController.value * 2 * math.pi);
+                return DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(0, -0.12),
+                      radius: 0.85 + (0.12 * pulse),
+                      colors: [
+                        AppColors.pacificBlue.withValues(
+                          alpha: 0.16 + 0.08 * pulse,
+                        ),
+                        AppColors.softPeriwinkle.withValues(alpha: 0.08),
+                        AppColors.surfaceBase,
+                        AppColors.black,
+                      ],
+                      stops: const [0.0, 0.35, 0.72, 1.0],
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
 
           // Main centered branding + loader
@@ -137,17 +139,19 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen>
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          AnimatedBuilder(
-                            animation: _loopController,
-                            builder: (context, _) {
-                              return Transform.rotate(
-                                angle: _loopController.value * 2 * math.pi,
-                                child: CustomPaint(
-                                  size: const Size(148, 148),
-                                  painter: _OrbitRingPainter(),
-                                ),
-                              );
-                            },
+                          RepaintBoundary(
+                            child: AnimatedBuilder(
+                              animation: _loopController,
+                              builder: (context, _) {
+                                return Transform.rotate(
+                                  angle: _loopController.value * 2 * math.pi,
+                                  child: CustomPaint(
+                                    size: const Size(148, 148),
+                                    painter: _OrbitRingPainter(),
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                           Container(
                             width: 112,
@@ -224,7 +228,9 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _AnimatedShimmerBar(controller: _loopController),
+                      RepaintBoundary(
+                        child: _AnimatedShimmerBar(controller: _loopController),
+                      ),
                       const SizedBox(height: 14),
                       AnimatedBuilder(
                         animation: _loopController,

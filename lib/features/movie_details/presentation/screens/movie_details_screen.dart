@@ -10,6 +10,7 @@ import '../../../../core/di/injection_container.dart';
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/auth_gate.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/genre_chip.dart';
 import '../../../../core/widgets/loading_view.dart';
@@ -46,6 +47,12 @@ Future<void> _openUnifiedRateReview(
   int? runtimeMinutes,
   required bool defaultPublishToCommunity,
 }) async {
+  final allowed = await AuthGate.requireAuth(
+    context,
+    actionLabel: 'rate and review movies',
+  );
+  if (!allowed || !context.mounted) return;
+
   final savedItem = context.read<WatchlistCubit>().state.findById(movie.id);
   final currentUid = context.read<AuthCubit>().state.user?.uid;
   final movieReviews = context.read<CommunityBloc>().state.reviewsForMovie(
@@ -144,9 +151,23 @@ class _MovieDetailsView extends StatelessWidget {
       listener: (context, state) {
         final msg = state.feedbackMessage ?? state.errorMessage;
         if (msg != null) {
+          final isAddFeedback =
+              state.feedbackMessage != null && !msg.startsWith('Removed');
+          final router = GoRouter.of(context);
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
-            ..showSnackBar(SnackBar(content: Text(msg)));
+            ..showSnackBar(
+              SnackBar(
+                content: Text(msg),
+                action: isAddFeedback
+                    ? SnackBarAction(
+                        label: 'Watchlist',
+                        textColor: AppColors.pacificBlue,
+                        onPressed: () => router.go('/watchlist'),
+                      )
+                    : null,
+              ),
+            );
           context.read<WatchlistCubit>().clearFeedback();
         }
       },
@@ -219,8 +240,20 @@ class _MovieDetailsView extends StatelessWidget {
                 return DetailsActionBar(
                   savedItem: savedItem,
                   isMutating: isMutating,
-                  onAddToWatchlist: () => watchlistCubit.addToWatchlist(summary),
+                  onAddToWatchlist: () async {
+                    final allowed = await AuthGate.requireAuth(
+                      context,
+                      actionLabel: 'save movies to your Watchlist',
+                    );
+                    if (!allowed || !context.mounted) return;
+                    watchlistCubit.addToWatchlist(summary);
+                  },
                   onMarkWatched: () async {
+                    final allowed = await AuthGate.requireAuth(
+                      context,
+                      actionLabel: 'log watched movies',
+                    );
+                    if (!allowed || !context.mounted) return;
                     await watchlistCubit.logWatchedMovie(
                       summary,
                       runtimeMinutes: detailsState.details?.runtime,
@@ -393,7 +426,16 @@ class _DetailsContent extends StatelessWidget {
                                       : 'Add to Watchlist',
                                   onTap: isMutating
                                       ? null
-                                      : () {
+                                      : () async {
+                                          final allowed =
+                                              await AuthGate.requireAuth(
+                                                context,
+                                                actionLabel:
+                                                    'save movies to your Watchlist',
+                                              );
+                                          if (!allowed || !context.mounted) {
+                                            return;
+                                          }
                                           if (isSaved) {
                                             watchlistCubit.removeFromWatchlist(
                                               movieId,
@@ -441,6 +483,7 @@ class _DetailsContent extends StatelessWidget {
                           height: isWide ? 196 : 130,
                           borderRadius: isWide ? 16 : 13,
                           heroTag: heroTag,
+                          highRes: true,
                         ),
                         const SizedBox(width: 16),
                         Expanded(
@@ -525,20 +568,9 @@ class _LoadedBody extends StatelessWidget {
       (c) => c.state.findById(details.id),
     );
 
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) => Opacity(
-        opacity: value,
-        child: Transform.translate(
-          offset: Offset(0, 12 * (1 - value)),
-          child: child,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
           if (details.genres.isNotEmpty) ...[
             Wrap(
               spacing: 8,
@@ -590,23 +622,32 @@ class _LoadedBody extends StatelessWidget {
           const SizedBox(height: 26),
           _MovieCommunityReviewsSection(details: details),
         ],
-      ),
-    );
+      );
   }
 }
 
-class _MovieCommunityReviewsSection extends StatelessWidget {
+class _MovieCommunityReviewsSection extends StatefulWidget {
   const _MovieCommunityReviewsSection({required this.details});
 
   final MovieDetailsModel details;
 
   @override
+  State<_MovieCommunityReviewsSection> createState() =>
+      _MovieCommunityReviewsSectionState();
+}
+
+class _MovieCommunityReviewsSectionState
+    extends State<_MovieCommunityReviewsSection> {
+  bool _sortByCurated = true;
+
+  @override
   Widget build(BuildContext context) {
+    final details = widget.details;
     final currentUid = context.select<AuthCubit, String?>(
       (c) => c.state.user?.uid,
     );
     final movieReviews = context.select<CommunityBloc, List<MovieReviewModel>>(
-      (b) => b.state.reviewsForMovie(details.id),
+      (b) => b.state.reviewsForMovie(details.id, sortByCurated: _sortByCurated),
     );
     final communityState = context.watch<CommunityBloc>().state;
     MovieReviewModel? myReview;
@@ -616,6 +657,10 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
         break;
       }
     }
+    final avgCommunityRating = movieReviews.isEmpty
+        ? null
+        : movieReviews.fold<int>(0, (sum, r) => sum + r.rating) /
+              movieReviews.length;
 
     return BlocListener<CommunityBloc, CommunityState>(
       listenWhen: (prev, curr) =>
@@ -635,11 +680,41 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Community Reviews (${movieReviews.length})',
-                style: Theme.of(context).textTheme.titleLarge,
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      'Community Reviews (${movieReviews.length})',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    if (avgCommunityRating != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.starAmber.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: AppColors.starAmber.withValues(alpha: 0.45),
+                          ),
+                        ),
+                        child: Text(
+                          '★ ${avgCommunityRating.toStringAsFixed(1)}',
+                          style: const TextStyle(
+                            color: AppColors.starAmber,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
               TextButton.icon(
                 onPressed: () => _openUnifiedRateReview(
@@ -665,6 +740,24 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
               ),
             ],
           ),
+          if (movieReviews.length > 1) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                _ReviewSortPill(
+                  label: 'Top Reviews',
+                  selected: _sortByCurated,
+                  onTap: () => setState(() => _sortByCurated = true),
+                ),
+                const SizedBox(width: 8),
+                _ReviewSortPill(
+                  label: 'Recent',
+                  selected: !_sortByCurated,
+                  onTap: () => setState(() => _sortByCurated = false),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 10),
           if (movieReviews.length >= 3) ...[
             _CommunityConsensusCard(
@@ -673,7 +766,39 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
             ),
             const SizedBox(height: 10),
           ],
-          if (movieReviews.isEmpty)
+          if (communityState.requiresSignInToRead && movieReviews.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceCard,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.surfaceBorder),
+              ),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Sign in to read community reviews for this film.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  FilledButton(
+                    onPressed: () => AuthGate.openAuth(context),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.pacificBlue,
+                      foregroundColor: AppColors.black,
+                    ),
+                    child: const Text('Sign In'),
+                  ),
+                ],
+              ),
+            )
+          else if (movieReviews.isEmpty)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -720,13 +845,32 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
                       fallbackName: review.authorName,
                       fallbackAvatarKey: review.authorAvatarKey,
                     ),
-                    onToggleLike: () => bloc.add(
-                      CommunityReactionToggled(review: review, isLike: true),
-                    ),
-                    onToggleDislike: () => bloc.add(
-                      CommunityReactionToggled(review: review, isLike: false),
-                    ),
+                    onToggleLike: () async {
+                      final allowed = await AuthGate.requireAuth(
+                        context,
+                        actionLabel: 'react to reviews',
+                      );
+                      if (!allowed || !context.mounted) return;
+                      bloc.add(
+                        CommunityReactionToggled(review: review, isLike: true),
+                      );
+                    },
+                    onToggleDislike: () async {
+                      final allowed = await AuthGate.requireAuth(
+                        context,
+                        actionLabel: 'react to reviews',
+                      );
+                      if (!allowed || !context.mounted) return;
+                      bloc.add(
+                        CommunityReactionToggled(review: review, isLike: false),
+                      );
+                    },
                     onReport: () async {
+                      final allowed = await AuthGate.requireAuth(
+                        context,
+                        actionLabel: 'report a review',
+                      );
+                      if (!allowed || !context.mounted) return;
                       final res = await ReportReviewDialog.show(
                         context,
                         authorName: review.authorName,
@@ -753,6 +897,47 @@ class _MovieCommunityReviewsSection extends StatelessWidget {
               }).toList(),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _ReviewSortPill extends StatelessWidget {
+  const _ReviewSortPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.pacificBlue.withValues(alpha: 0.18)
+              : AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? AppColors.pacificBlue : AppColors.surfaceBorder,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? AppColors.pacificBlue : AppColors.textSecondary,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
     );
   }

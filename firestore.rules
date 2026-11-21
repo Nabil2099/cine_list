@@ -104,7 +104,7 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isOwner(uid) && isNotBanned() && isValidUserProfile(request.resource.data);
       allow update: if (
         isOwner(uid)
@@ -156,7 +156,7 @@ service cloud.firestore {
     }
 
     match /reviews/{reviewId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isSignedIn() && isNotBanned() && isValidReview(request.resource.data);
       allow update: if isSignedIn() && isNotBanned() && (
         isValidReview(request.resource.data)
@@ -166,7 +166,7 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isStaff());
 
       match /comments/{commentId} {
-        allow read: if isSignedIn();
+        allow read: if true;
         allow create: if isSignedIn()
           && isNotBanned()
           && request.resource.data.uid == request.auth.uid
@@ -201,7 +201,7 @@ service cloud.firestore {
     }
 
     match /community_polls/{pollId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isStaff()
         && request.resource.data.question is string
         && request.resource.data.question.size() > 0
@@ -222,7 +222,7 @@ service cloud.firestore {
     }
 
     match /community_lists/{listId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isSignedIn()
         && isNotBanned()
         && request.resource.data.authorUid == request.auth.uid
@@ -239,7 +239,7 @@ service cloud.firestore {
     }
 
     match /community_challenges/{challengeId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create, delete: if isStaff();
       allow update: if isStaff() || (
         isSignedIn()

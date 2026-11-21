@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -6,10 +8,14 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/routing/movie_details_route.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/auth_gate.dart';
 import '../../../../core/widgets/empty_state_view.dart';
+import '../../../../core/widgets/profile_drawer_button.dart';
 import '../../../../shared/models/movie_summary.dart';
 import '../../../../shared/widgets/movie_poster.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
+import '../../../auth/presentation/cubit/auth_state.dart';
+import '../../../watchlist/data/models/watchlist_movie_model.dart';
 import '../../../watchlist/presentation/cubit/watchlist_cubit.dart';
 import '../../data/models/curated_list_model.dart';
 import '../../data/models/movie_review_model.dart';
@@ -113,15 +119,72 @@ class FollowingFeedScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isSignedIn = context.select<AuthCubit, bool>(
+      (c) => c.state.status == AuthStatus.authenticated,
+    );
     final currentUid = context.select<AuthCubit, String?>(
       (c) => c.state.user?.uid,
     );
-    final savedMovieIds = context.select<WatchlistCubit, Set<int>>(
-      (w) => w.state.movies.map((m) => m.movieId).toSet(),
-    );
+    final watchlistMovies = context
+        .select<WatchlistCubit, List<WatchlistMovieModel>>(
+          (w) => w.state.movies,
+        );
+    final savedMovieIds = {for (final m in watchlistMovies) m.movieId};
+    final isWideWeb =
+        kIsWeb &&
+        MediaQuery.sizeOf(context).width >= AppConstants.tabletBreakpoint;
 
-    return SafeArea(
-      child: Center(
+    if (!isSignedIn) {
+      return ColoredBox(
+        color: AppColors.black,
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: AppConstants.maxContentWidth,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: Row(
+                      children: [
+                        if (!isWideWeb) ...[
+                          const ProfileDrawerButton(),
+                          const SizedBox(width: 12),
+                        ],
+                        Text(
+                          'Following Feed',
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: GuestPromptView(
+                      icon: Icons.dynamic_feed_rounded,
+                      title: 'Your Following Feed',
+                      message:
+                          'Sign in and follow critics in Community to see their latest reviews, curated lists, and movie overlap here.',
+                      secondaryLabel: onExploreCommunity != null
+                          ? 'Explore Community'
+                          : null,
+                      onSecondaryTap: onExploreCommunity,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ColoredBox(
+      color: AppColors.black,
+      child: SafeArea(
+        child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
             maxWidth: AppConstants.maxContentWidth,
@@ -133,18 +196,41 @@ class FollowingFeedScreen extends StatelessWidget {
                   state.profile?.followingUids.toSet() ?? const <String>{};
 
               if (following.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: EmptyStateView(
-                    icon: Icons.dynamic_feed_rounded,
-                    title: 'Your Following Feed is empty',
-                    message:
-                        'Follow critics in Community to see their latest reviews, curated lists, and movie overlap here.',
-                    actionLabel: onExploreCommunity != null
-                        ? 'Explore Community'
-                        : null,
-                    onAction: onExploreCommunity,
-                  ),
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (!isWideWeb)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                        child: Row(
+                          children: [
+                            const ProfileDrawerButton(),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Following Feed',
+                              style: Theme.of(
+                                context,
+                              ).textTheme.headlineMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: EmptyStateView(
+                          icon: Icons.dynamic_feed_rounded,
+                          title: 'Your Following Feed is empty',
+                          message:
+                              'Follow critics in Community to see their latest reviews, curated lists, and movie overlap here.',
+                          actionLabel: onExploreCommunity != null
+                              ? 'Explore Community'
+                              : null,
+                          onAction: onExploreCommunity,
+                        ),
+                      ),
+                    ),
+                  ],
                 );
               }
 
@@ -181,6 +267,7 @@ class FollowingFeedScreen extends StatelessWidget {
                   await Future<void>.delayed(const Duration(milliseconds: 400));
                 },
                 child: CustomScrollView(
+                  scrollCacheExtent: const ScrollCacheExtent.pixels(600),
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
                     SliverPadding(
@@ -189,14 +276,34 @@ class FollowingFeedScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Following Feed',
-                              style: Theme.of(context).textTheme.headlineMedium,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Activity from ${following.length} ${following.length == 1 ? 'critic' : 'critics'} you follow',
-                              style: Theme.of(context).textTheme.bodyMedium,
+                            Row(
+                              children: [
+                                if (!isWideWeb) ...[
+                                  const ProfileDrawerButton(),
+                                  const SizedBox(width: 12),
+                                ],
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Following Feed',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.headlineMedium,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Activity from ${following.length} ${following.length == 1 ? 'critic' : 'critics'} you follow',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                             if (followedParticipants.isNotEmpty &&
                                 challenge != null) ...[
@@ -472,6 +579,7 @@ class FollowingFeedScreen extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 }

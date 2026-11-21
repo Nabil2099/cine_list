@@ -1,9 +1,7 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/decoded_image_cache.dart';
 import '../../data/models/user_profile_model.dart';
 
 /// Circular themed avatar supporting custom uploaded photos, preset icons,
@@ -28,16 +26,6 @@ class UserAvatar extends StatelessWidget {
   final bool showRankBadge;
   final double radius;
 
-  Uint8List? _decodePhoto() {
-    final raw = photoBase64?.trim();
-    if (raw == null || raw.isEmpty) return null;
-    try {
-      return base64Decode(raw);
-    } catch (_) {
-      return null;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final preset = AvatarPreset.fromKey(avatarKey);
@@ -50,7 +38,7 @@ class UserAvatar extends StatelessWidget {
         : hasRankRing
         ? tier.color
         : preset.color;
-    final photoBytes = _decodePhoto();
+    final photoProvider = DecodedImageCache.getOrDecode(photoBase64);
 
     final circle = Container(
       width: radius * 2,
@@ -80,12 +68,14 @@ class UserAvatar extends StatelessWidget {
             : null,
       ),
       child: ClipOval(
-        child: photoBytes != null
-            ? Image.memory(
-                photoBytes,
+        child: photoProvider != null
+            ? Image(
+                image: photoProvider,
                 fit: BoxFit.cover,
                 width: radius * 2,
                 height: radius * 2,
+                gaplessPlayback: true,
+                filterQuality: FilterQuality.medium,
                 errorBuilder: (_, _, _) =>
                     _PresetCircle(preset: preset, radius: radius),
               )

@@ -106,6 +106,21 @@ class AuthCubit extends Cubit<AuthState> {
     );
   }
 
+  void setRegisterMode(bool isRegister) {
+    if (state.isRegisterMode == isRegister &&
+        state.errorMessage == null &&
+        state.infoMessage == null) {
+      return;
+    }
+    emit(
+      state.copyWith(
+        isRegisterMode: isRegister,
+        clearError: true,
+        clearInfo: true,
+      ),
+    );
+  }
+
   void clearMessages() {
     emit(state.copyWith(clearError: true, clearInfo: true));
   }

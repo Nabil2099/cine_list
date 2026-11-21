@@ -49,38 +49,66 @@ class DiscoverGenre {
   ];
 }
 
-/// Repository for movie discovery, genre filtering, and search.
+/// Repository for movie discovery, genre filtering, and search with short-lived
+/// in-memory TTL caching to keep tab & genre switches instantaneous.
 class DiscoverRepository {
-  DiscoverRepository(this._remoteDataSource);
+  DiscoverRepository(
+    this._remoteDataSource, {
+    this.cacheTtl = const Duration(minutes: 5),
+    DateTime Function()? clock,
+  }) : _clock = clock ?? DateTime.now;
 
   final TmdbRemoteDataSource _remoteDataSource;
+  final Duration cacheTtl;
+  final DateTime Function() _clock;
+  final Map<String, _DiscoverCacheEntry> _cache = {};
 
   Future<PaginatedMoviesResponse> fetchByCategory(
     DiscoverCategory category, {
     int page = 1,
-  }) {
-    switch (category) {
-      case DiscoverCategory.trending:
-        return _remoteDataSource.getTrendingMovies(page: page);
-      case DiscoverCategory.nowPlaying:
-        return _remoteDataSource.getNowPlayingMovies(page: page);
-      case DiscoverCategory.upcoming:
-        return _remoteDataSource.getUpcomingMovies(page: page);
-      case DiscoverCategory.popular:
-        return _remoteDataSource.getPopularMovies(page: page);
-      case DiscoverCategory.topRated:
-        return _remoteDataSource.getTopRatedMovies(page: page);
+    bool forceRefresh = false,
+  }) async {
+    final key = 'cat:${category.key}:$page';
+    if (!forceRefresh) {
+      final cached = _readCache(key);
+      if (cached != null) return cached;
     }
+
+    final response = switch (category) {
+      DiscoverCategory.trending =>
+        await _remoteDataSource.getTrendingMovies(page: page),
+      DiscoverCategory.nowPlaying =>
+        await _remoteDataSource.getNowPlayingMovies(page: page),
+      DiscoverCategory.upcoming =>
+        await _remoteDataSource.getUpcomingMovies(page: page),
+      DiscoverCategory.popular =>
+        await _remoteDataSource.getPopularMovies(page: page),
+      DiscoverCategory.topRated =>
+        await _remoteDataSource.getTopRatedMovies(page: page),
+    };
+    _writeCache(key, response);
+    return response;
   }
 
-  Future<PaginatedMoviesResponse> fetchByGenre(int genreId, {int page = 1}) {
-    if (genreId == DiscoverGenre.arabicGenreId) {
-      return _remoteDataSource.discoverArabicMovies(page: page);
+  Future<PaginatedMoviesResponse> fetchByGenre(
+    int genreId, {
+    int page = 1,
+    bool forceRefresh = false,
+  }) async {
+    final key = 'genre:$genreId:$page';
+    if (!forceRefresh) {
+      final cached = _readCache(key);
+      if (cached != null) return cached;
     }
-    return _remoteDataSource.discoverMoviesByGenre(
-      genreId: genreId,
-      page: page,
-    );
+
+    final response = genreId == DiscoverGenre.arabicGenreId
+        ? await _remoteDataSource.discoverArabicMovies(page: page)
+        : await _remoteDataSource.discoverMoviesByGenre(
+            genreId: genreId,
+            page: page,
+          );
+    _writeCache(key, response);
+    return response;
   }
 
   Future<PaginatedMoviesResponse> searchMovies({
@@ -94,4 +122,31 @@ class DiscoverRepository {
       cancelToken: cancelToken,
     );
   }
+
+  PaginatedMoviesResponse? _readCache(String key) {
+    final entry = _cache[key];
+    if (entry == null) return null;
+    if (_clock().isAfter(entry.expiresAt)) {
+      _cache.remove(key);
+      return null;
+    }
+    return entry.response;
+  }
+
+  void _writeCache(String key, PaginatedMoviesResponse response) {
+    _cache[key] = _DiscoverCacheEntry(
+      response: response,
+      expiresAt: _clock().add(cacheTtl),
+    );
+  }
+}
+
+class _DiscoverCacheEntry {
+  const _DiscoverCacheEntry({
+    required this.response,
+    required this.expiresAt,
+  });
+
+  final PaginatedMoviesResponse response;
+  final DateTime expiresAt;
 }

@@ -1,21 +1,186 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/auth_gate.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
+import '../../../auth/presentation/cubit/auth_state.dart';
 import '../../../community/data/models/user_profile_model.dart';
 import '../../../community/presentation/bloc/community_bloc.dart';
 import '../../../community/presentation/widgets/user_avatar_widget.dart';
+import '../../../watchlist/data/models/watchlist_movie_model.dart';
 import '../../../watchlist/presentation/cubit/watchlist_cubit.dart';
 
-/// Home endDrawer displaying the user's profile overview, stats, and settings.
+/// Shared Drawer displaying the user's profile overview, quick jumps, and settings
+/// (or a Guest Mode sign-in card when browsing unauthenticated).
 class DiscoverProfileDrawer extends StatelessWidget {
   const DiscoverProfileDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final authUser = context.watch<AuthCubit>().state.user;
+    final authState = context.watch<AuthCubit>().state;
+    final isSignedIn = authState.status == AuthStatus.authenticated;
+
+    if (!isSignedIn) {
+      return Drawer(
+        backgroundColor: AppColors.surfaceBase,
+        child: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(18, 20, 18, 24),
+            children: [
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceCard,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.surfaceBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: AppColors.pacificBlue.withValues(
+                              alpha: 0.16,
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: AppColors.pacificBlue.withValues(
+                                alpha: 0.45,
+                              ),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.movie_filter_rounded,
+                            color: AppColors.khakiBeige,
+                            size: 26,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Browsing as Guest',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 16.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Sign in to unlock your personal cinema hub',
+                                style: TextStyle(
+                                  color: AppColors.textMuted,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const _GuestBenefitRow(
+                      icon: Icons.bookmark_added_rounded,
+                      text: 'Sync Watchlist & custom collections across devices',
+                    ),
+                    const SizedBox(height: 8),
+                    const _GuestBenefitRow(
+                      icon: Icons.rate_review_rounded,
+                      text: 'Rate movies, log watched films & write reviews',
+                    ),
+                    const SizedBox(height: 8),
+                    const _GuestBenefitRow(
+                      icon: Icons.auto_awesome_rounded,
+                      text: 'Get AI picks tailored to your Watchlist',
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          AuthGate.openAuth(context, register: false);
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.pacificBlue,
+                          foregroundColor: AppColors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          'Sign In',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          AuthGate.openAuth(context, register: true);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textPrimary,
+                          side: const BorderSide(
+                            color: AppColors.surfaceBorder,
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          'Create Free Account',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (kIsWeb) ...[
+                const SizedBox(height: 18),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceCard,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppColors.surfaceBorder),
+                  ),
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.info_outline_rounded,
+                      color: AppColors.khakiBeige,
+                    ),
+                    title: const Text('About CineList'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.go('/welcome');
+                    },
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    final authUser = authState.user;
     final communityState = context.watch<CommunityBloc>().state;
     final watchlistState = context.watch<WatchlistCubit>().state;
 
@@ -41,140 +206,170 @@ class DiscoverProfileDrawer extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(18, 20, 18, 24),
           children: [
-            // Profile Overview Card
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceCard,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.surfaceBorder),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      UserAvatar(
-                        avatarKey: profile.avatarKey,
-                        photoBase64: profile.photoBase64,
-                        reputation: profile.reputation,
-                        isAdmin: communityState.isAdmin,
-                        isModerator: communityState.isModerator,
-                        radius: 28,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              profile.displayName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 16.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            if (email.isNotEmpty)
+            // Profile Overview Card (1-tap jump to Profile)
+            InkWell(
+              onTap: () {
+                Navigator.of(context).pop();
+                context.push('/profile');
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceCard,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.surfaceBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        UserAvatar(
+                          avatarKey: profile.avatarKey,
+                          photoBase64: profile.photoBase64,
+                          reputation: profile.reputation,
+                          isAdmin: communityState.isAdmin,
+                          isModerator: communityState.isModerator,
+                          radius: 28,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Text(
-                                email,
+                                profile.displayName,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  color: AppColors.textMuted,
-                                  fontSize: 11.5,
+                                  color: AppColors.textPrimary,
+                                  fontSize: 16.5,
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
-                            const SizedBox(height: 6),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 4,
-                              children: [
-                                if (communityState.isAdmin)
-                                  const _DrawerPill(
-                                    label: 'Creator',
-                                    color: AppColors.creatorEmerald,
-                                    leading: CreatorEmblemIcon(size: 12),
-                                  )
-                                else if (communityState.isModerator)
-                                  _DrawerPill(
-                                    label: 'Moderator',
-                                    color: AppColors.pacificBlue,
-                                    icon: Icons.gavel_rounded,
+                              if (email.isNotEmpty)
+                                Text(
+                                  email,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: AppColors.textMuted,
+                                    fontSize: 11.5,
                                   ),
-                                _DrawerPill(
-                                  label:
-                                      '${tier.label} · ${profile.reputation} pts',
-                                  color: tier.color,
-                                  icon: tier.icon,
                                 ),
-                              ],
-                            ),
-                          ],
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                children: [
+                                  if (communityState.isAdmin)
+                                    const _DrawerPill(
+                                      label: 'Creator',
+                                      color: AppColors.creatorEmerald,
+                                      leading: CreatorEmblemIcon(size: 12),
+                                    )
+                                  else if (communityState.isModerator)
+                                    _DrawerPill(
+                                      label: 'Moderator',
+                                      color: AppColors.pacificBlue,
+                                      icon: Icons.gavel_rounded,
+                                    ),
+                                  _DrawerPill(
+                                    label:
+                                        '${tier.label} · ${profile.reputation} pts',
+                                    color: tier.color,
+                                    icon: tier.icon,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          color: AppColors.textMuted,
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                    if (profile.bio.trim().isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        profile.bio.trim(),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12.5,
+                          height: 1.4,
                         ),
                       ),
                     ],
-                  ),
-                  if (profile.bio.trim().isNotEmpty) ...[
                     const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: tier.progressToNext(profile.reputation),
+                        minHeight: 6,
+                        backgroundColor: AppColors.surfaceElevated,
+                        color: tier.color,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
                     Text(
-                      profile.bio.trim(),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
+                      next == null
+                          ? 'Max rank unlocked!'
+                          : '${next.minPoints - profile.reputation} pts to ${next.label}',
                       style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12.5,
-                        height: 1.4,
+                        color: AppColors.textMuted,
+                        fontSize: 11,
                       ),
                     ),
                   ],
-                  const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      value: tier.progressToNext(profile.reputation),
-                      minHeight: 6,
-                      backgroundColor: AppColors.surfaceElevated,
-                      color: tier.color,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    next == null
-                        ? 'Max rank unlocked!'
-                        : '${next.minPoints - profile.reputation} pts to ${next.label}',
-                    style: const TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
 
             const SizedBox(height: 14),
 
-            // Quick Stats Row
+            // Tappable Quick Stats Shortcuts
             Row(
               children: [
                 _MiniStat(
-                  value: '${watchlistState.movies.length}',
-                  label: 'Saved',
+                  value: '${watchlistState.wantToWatchMovies.length}',
+                  label: 'Want List',
                   color: AppColors.pacificBlue,
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context.read<WatchlistCubit>().selectTab(
+                      WatchlistFilterStatus.wantToWatch,
+                    );
+                    context.go('/watchlist');
+                  },
                 ),
                 const SizedBox(width: 8),
                 _MiniStat(
                   value: '${watchlistState.watchedMovies.length}',
                   label: 'Watched',
                   color: AppColors.khakiBeige,
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context.read<WatchlistCubit>().selectTab(
+                      WatchlistFilterStatus.watched,
+                    );
+                    context.go('/watchlist');
+                  },
                 ),
                 const SizedBox(width: 8),
                 _MiniStat(
                   value: '$myReviewsCount',
                   label: 'Reviews',
                   color: AppColors.softPeriwinkle,
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context.push('/profile');
+                  },
                 ),
               ],
             ),
@@ -207,11 +402,24 @@ class DiscoverProfileDrawer extends StatelessWidget {
                       Icons.person_outline_rounded,
                       color: AppColors.pacificBlue,
                     ),
-                    title: const Text('Edit Profile'),
+                    title: const Text('My Profile'),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () {
                       Navigator.of(context).pop();
                       context.push('/profile');
+                    },
+                  ),
+                  const Divider(height: 1, color: AppColors.surfaceBorder),
+                  ListTile(
+                    leading: const Icon(
+                      Icons.auto_graph_rounded,
+                      color: AppColors.softPeriwinkle,
+                    ),
+                    title: const Text('Cinema Wrapped'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.push('/stats');
                     },
                   ),
                   if (email.isNotEmpty) ...[
@@ -336,43 +544,76 @@ class _MiniStat extends StatelessWidget {
     required this.value,
     required this.label,
     required this.color,
+    this.onTap,
   });
 
   final String value;
   final String label;
   final Color color;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.surfaceBorder),
-        ),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: TextStyle(
-                color: color,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceCard,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.surfaceBorder),
+          ),
+          child: Column(
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 11,
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _GuestBenefitRow extends StatelessWidget {
+  const _GuestBenefitRow({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 17, color: AppColors.pacificBlue),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12.5,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

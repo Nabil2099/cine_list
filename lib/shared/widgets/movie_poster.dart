@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/api_constants.dart';
@@ -15,6 +16,7 @@ class MoviePoster extends StatelessWidget {
     this.aspectRatio = 2 / 3,
     this.fit = BoxFit.cover,
     this.heroTag,
+    this.highRes = false,
   });
 
   final String? posterPath;
@@ -24,10 +26,25 @@ class MoviePoster extends StatelessWidget {
   final double aspectRatio;
   final BoxFit fit;
   final String? heroTag;
+  final bool highRes;
 
   @override
   Widget build(BuildContext context) {
-    final url = ApiConstants.posterUrl(posterPath);
+    final resolvedSize = highRes
+        ? ApiConstants.posterSize
+        : (width != null && width! <= 90)
+        ? ApiConstants.posterThumbSize
+        : (width == null || width! <= 220)
+        ? ApiConstants.posterCardSize
+        : ApiConstants.posterSize;
+    final url = ApiConstants.posterUrl(posterPath, size: resolvedSize);
+
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final targetLogicalWidth =
+        width ?? (height != null ? height! * aspectRatio : 160.0);
+    final memCacheWidth = kIsWeb
+        ? null
+        : (targetLogicalWidth * dpr).round().clamp(140, 750);
 
     Widget image;
     if (url == null) {
@@ -36,6 +53,9 @@ class MoviePoster extends StatelessWidget {
       image = CachedNetworkImage(
         imageUrl: url,
         fit: fit,
+        memCacheWidth: memCacheWidth,
+        fadeInDuration: const Duration(milliseconds: 150),
+        fadeOutDuration: const Duration(milliseconds: 100),
         placeholder: (_, _) => const _PosterPlaceholder(),
         errorWidget: (_, _, _) => const _PosterFallback(),
       );

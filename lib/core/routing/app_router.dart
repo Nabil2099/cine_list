@@ -10,6 +10,7 @@ import '../../features/auth/presentation/cubit/auth_cubit.dart';
 import '../../features/auth/presentation/cubit/auth_state.dart';
 import '../../features/auth/presentation/screens/auth_screen.dart';
 import '../../features/auth/presentation/screens/verify_email_screen.dart';
+import '../../features/community/presentation/screens/community_polls_screen.dart';
 import '../../features/community/presentation/screens/community_screen.dart';
 import '../../features/community/presentation/screens/following_feed_screen.dart';
 import '../../features/community/presentation/screens/notifications_screen.dart';
@@ -26,11 +27,11 @@ import 'movie_details_route.dart';
 /// Application GoRouter configuration with auth, splash, and shell branches.
 class AppRouter {
   AppRouter({required this.authCubit, required this.discoverBloc}) {
-    _minSplashTimer = Timer(const Duration(milliseconds: 1800), () {
+    _minSplashTimer = Timer(const Duration(milliseconds: 750), () {
       _minDurationElapsed = true;
       _refreshNotifier.trigger();
     });
-    _maxWaitTimer = Timer(const Duration(milliseconds: 4500), () {
+    _maxWaitTimer = Timer(const Duration(milliseconds: 2500), () {
       _maxWaitElapsed = true;
       _refreshNotifier.trigger();
     });
@@ -53,6 +54,27 @@ class AppRouter {
   bool _minDurationElapsed = false;
   bool _maxWaitElapsed = false;
 
+  static const Set<String> _protectedRoutes = {
+    '/profile',
+    '/notifications',
+    '/stats',
+    '/admin',
+  };
+
+  static String? _sanitizeReturnPath(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    if (!raw.startsWith('/') || raw.startsWith('//')) return null;
+    const blocked = ['/auth', '/splash', '/verify-email', '/welcome'];
+    for (final prefix in blocked) {
+      if (raw == prefix ||
+          raw.startsWith('$prefix?') ||
+          raw.startsWith('$prefix/')) {
+        return null;
+      }
+    }
+    return raw;
+  }
+
   late final GoRouter router = GoRouter(
     initialLocation: '/splash',
     refreshListenable: _refreshNotifier,
@@ -63,7 +85,7 @@ class AppRouter {
 
       final isAuthResolved = authStatus != AuthStatus.initial;
       final isDiscoverReady =
-          authStatus != AuthStatus.authenticated ||
+          authStatus == AuthStatus.unverified ||
           (discoverStatus != DiscoverStatus.initial &&
               discoverStatus != DiscoverStatus.loading);
       final showSplash =
@@ -81,7 +103,8 @@ class AppRouter {
             location == '/welcome' ||
             location == '/auth' ||
             location == '/verify-email') {
-          return '/discover';
+          return _sanitizeReturnPath(state.uri.queryParameters['from']) ??
+              '/discover';
         }
         return null;
       }
@@ -90,18 +113,16 @@ class AppRouter {
         return location == '/verify-email' ? null : '/verify-email';
       }
 
-      // Unauthenticated
-      if (kIsWeb) {
-        if (location == '/welcome' || location == '/auth') {
-          return null;
-        }
-        return '/welcome';
-      } else {
-        if (location == '/auth') {
-          return null;
-        }
-        return '/auth';
+      // Guest Mode (unauthenticated): launch straight to Discover and guard account-only routes.
+      if (location == '/' ||
+          location == '/splash' ||
+          location == '/verify-email') {
+        return '/discover';
       }
+      if (_protectedRoutes.contains(location)) {
+        return '/auth?from=${Uri.encodeComponent(state.uri.toString())}';
+      }
+      return null;
     },
     routes: [
       GoRoute(
@@ -112,24 +133,21 @@ class AppRouter {
         path: '/welcome',
         builder: (context, state) => WebLandingScreen(
           onSignIn: () {
-            final authCubit = context.read<AuthCubit>();
-            if (authCubit.state.isRegisterMode) {
-              authCubit.toggleMode();
-            }
+            context.read<AuthCubit>().setRegisterMode(false);
             context.go('/auth');
           },
           onGetStarted: () {
-            final authCubit = context.read<AuthCubit>();
-            if (!authCubit.state.isRegisterMode) {
-              authCubit.toggleMode();
-            }
+            context.read<AuthCubit>().setRegisterMode(true);
             context.go('/auth');
           },
+          onBrowseAsGuest: () => context.go('/discover'),
         ),
       ),
       GoRoute(
         path: '/auth',
         builder: (context, state) => AuthScreen(
+          onContinueAsGuest: () =>
+              context.canPop() ? context.pop() : context.go('/discover'),
           onBackToLanding: kIsWeb ? () => context.go('/welcome') : null,
         ),
       ),
@@ -201,6 +219,10 @@ class AppRouter {
       GoRoute(
         path: '/notifications',
         builder: (context, state) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: '/polls',
+        builder: (context, state) => const CommunityPollsScreen(),
       ),
       GoRoute(path: '/admin', builder: (context, state) => const AdminScreen()),
       GoRoute(

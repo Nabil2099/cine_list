@@ -416,12 +416,21 @@ void main() {
         final baseState = CommunityState(
           profile: sampleProfile.copyWith(followingUids: const ['uid-2']),
           reviews: [reviewA, reviewB],
+          sortOption: CommunitySortOption.latest,
         );
 
         expect(baseState.filteredReviews.map((r) => r.id).toList(), [
           '2_uid-2',
           '1_uid-1',
         ]);
+        expect(
+          baseState
+              .copyWith(sortOption: CommunitySortOption.curated)
+              .filteredReviews
+              .map((r) => r.id)
+              .toList(),
+          ['1_uid-1', '2_uid-2'],
+        );
         expect(
           baseState
               .copyWith(sortOption: CommunitySortOption.mostHelpful)
@@ -861,6 +870,131 @@ void main() {
       verify: (bloc) {
         expect(bloc.state.unreadNotificationCount, 0);
         verify(() => repository.markAllNotificationsRead('uid-1')).called(1);
+      },
+    );
+
+    test(
+      'CommunityState curates substantive reviews, hides bare raw entries past threshold, and aggregates top rated movies',
+      () {
+        final substantive1 = MovieReviewModel(
+          id: '10_u1',
+          movieId: 10,
+          movieTitle: 'Interstellar',
+          uid: 'u1',
+          authorName: 'Alice',
+          rating: 5,
+          comment:
+              'Stunning cinematography and Hans Zimmer score that elevates every orbital sequence.',
+          likedBy: const ['x', 'y', 'z'],
+          isVerifiedWatch: true,
+          createdAt: DateTime(2026, 2, 1),
+        );
+        final substantive2 = MovieReviewModel(
+          id: '10_u2',
+          movieId: 10,
+          movieTitle: 'Interstellar',
+          uid: 'u2',
+          authorName: 'Bob',
+          rating: 5,
+          comment:
+              'A deeply emotional sci-fi journey that holds up on every single rewatch.',
+          likedBy: const ['x'],
+          createdAt: DateTime(2026, 2, 2),
+        );
+        final substantive3 = MovieReviewModel(
+          id: '20_u3',
+          movieId: 20,
+          movieTitle: 'Dune',
+          uid: 'u3',
+          authorName: 'Carol',
+          rating: 4,
+          comment:
+              'Immense scale, world-building, and thunderous sound design throughout.',
+          replyCount: 2,
+          createdAt: DateTime(2026, 2, 3),
+        );
+        final raw1 = MovieReviewModel(
+          id: '30_u4',
+          movieId: 30,
+          movieTitle: 'Random Film',
+          uid: 'u4',
+          authorName: 'Dave',
+          rating: 5,
+          comment: 'Good',
+          createdAt: DateTime(2026, 2, 4),
+        );
+        final raw2 = MovieReviewModel(
+          id: '40_u5',
+          movieId: 40,
+          movieTitle: 'Other Film',
+          uid: 'u5',
+          authorName: 'Eve',
+          rating: 2,
+          comment: 'Ok',
+          createdAt: DateTime(2026, 2, 5),
+        );
+
+        final state = CommunityState(
+          reviews: [raw2, raw1, substantive3, substantive2, substantive1],
+        );
+
+        expect(state.sortOption, CommunitySortOption.curated);
+        expect(state.hiddenRawReviewsCount, 2);
+        expect(
+          state.filteredReviews.map((r) => r.id).toList(),
+          ['10_u1', '20_u3', '10_u2'],
+        );
+
+        // Switching to Recent reveals all 5 reviews.
+        expect(
+          state
+              .copyWith(sortOption: CommunitySortOption.latest)
+              .filteredReviews,
+          hasLength(5),
+        );
+
+        // Top Rated by Community ranks 2x 5★ Interstellar above single-review Random Film.
+        final spotlights = state.topRatedCommunityMovies;
+        expect(spotlights.first.movieId, 10);
+        expect(spotlights.first.averageRating, 5.0);
+        expect(spotlights.first.reviewCount, 2);
+
+        // Featured reviews picks substantive takes across distinct movies and excludes bare raw entries.
+        final featured = state.featuredReviews;
+        expect(featured, hasLength(3));
+        expect(
+          featured.take(2).map((r) => r.movieId).toList(),
+          [10, 20],
+        );
+        expect(
+          featured.any((r) => r.id == '30_u4' || r.id == '40_u5'),
+          isFalse,
+        );
+      },
+    );
+
+    blocTest<CommunityBloc, CommunityState>(
+      'Guest mode (uid: null) starts public streams and handles permission-denied gracefully',
+      build: () {
+        when(() => repository.watchRecentReviews()).thenAnswer(
+          (_) => Stream.error(
+            const WatchlistException(
+              'Permission denied',
+              code: 'permission-denied',
+            ),
+          ),
+        );
+        return CommunityBloc(repository);
+      },
+      act: (bloc) async {
+        bloc.add(const CommunityUserBound(uid: null));
+        await Future<void>.delayed(Duration.zero);
+      },
+      verify: (bloc) {
+        verify(() => repository.watchRecentReviews()).called(1);
+        expect(bloc.state.status, CommunityStatus.loaded);
+        expect(bloc.state.requiresSignInToRead, isTrue);
+        expect(bloc.state.errorMessage, isNull);
       },
     );
   });

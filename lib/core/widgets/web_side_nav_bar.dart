@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/presentation/cubit/auth_cubit.dart';
+import '../../features/auth/presentation/cubit/auth_state.dart';
+import '../../features/community/presentation/bloc/community_bloc.dart';
+import '../../features/community/presentation/widgets/user_avatar_widget.dart';
 import '../theme/app_colors.dart';
+import 'auth_gate.dart';
 
 /// Left-hand sidebar navigation rendered on Flutter Web.
 class WebSideNavBar extends StatelessWidget {
@@ -9,10 +15,12 @@ class WebSideNavBar extends StatelessWidget {
     super.key,
     required this.currentIndex,
     required this.onTap,
+    this.wantToWatchCount = 0,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
+  final int wantToWatchCount;
 
   static const _items = [
     (
@@ -45,6 +53,30 @@ class WebSideNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isExpanded = MediaQuery.sizeOf(context).width >= 900;
+    final isSignedIn = context.select<AuthCubit, bool>(
+      (c) => c.state.status == AuthStatus.authenticated,
+    );
+    final authName = context.select<AuthCubit, String?>(
+      (c) => c.state.user?.displayName,
+    );
+    final profileName = context.select<CommunityBloc, String?>(
+      (b) => b.state.profile?.displayName,
+    );
+    final avatarKey = context.select<CommunityBloc, String>(
+      (b) => b.state.profile?.avatarKey ?? 'cinema',
+    );
+    final photoBase64 = context.select<CommunityBloc, String?>(
+      (b) => b.state.profile?.photoBase64,
+    );
+    final reputation = context.select<CommunityBloc, int>(
+      (b) => b.state.profile?.reputation ?? 0,
+    );
+    final displayName =
+        (profileName != null && profileName.trim().isNotEmpty)
+        ? profileName.trim()
+        : (authName != null && authName.trim().isNotEmpty)
+        ? authName.trim()
+        : 'Profile';
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -172,6 +204,29 @@ class WebSideNavBar extends StatelessWidget {
                                   ),
                                 ),
                               ),
+                              if (index == 1 && wantToWatchCount > 0)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.pacificBlue.withValues(
+                                      alpha: 0.2,
+                                    ),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    wantToWatchCount > 99
+                                        ? '99+'
+                                        : '$wantToWatchCount',
+                                    style: const TextStyle(
+                                      color: AppColors.pacificBlue,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ],
                         ),
@@ -183,51 +238,119 @@ class WebSideNavBar extends StatelessWidget {
               const Spacer(),
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: Tooltip(
-                  message: isExpanded ? '' : 'Profile',
-                  child: InkWell(
-                    onTap: () => context.push('/profile'),
-                    borderRadius: BorderRadius.circular(14),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isExpanded ? 14 : 0,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceCard,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.surfaceBorder),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: isExpanded
-                            ? MainAxisAlignment.start
-                            : MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.person_outline_rounded,
-                            size: 22,
-                            color: AppColors.khakiBeige,
-                          ),
-                          if (isExpanded) ...[
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Text(
-                                'Profile',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                child: isSignedIn
+                    ? Tooltip(
+                        message: isExpanded ? '' : 'Profile',
+                        child: InkWell(
+                          onTap: () => context.push('/profile'),
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isExpanded ? 12 : 0,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceCard,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: AppColors.surfaceBorder,
                               ),
                             ),
-                          ],
-                        ],
+                            child: Row(
+                              mainAxisAlignment: isExpanded
+                                  ? MainAxisAlignment.start
+                                  : MainAxisAlignment.center,
+                              children: [
+                                UserAvatar(
+                                  avatarKey: avatarKey,
+                                  photoBase64: photoBase64,
+                                  reputation: reputation,
+                                  showRankBadge: false,
+                                  radius: 14,
+                                ),
+                                if (isExpanded) ...[
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          displayName,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const Text(
+                                          'View Profile',
+                                          style: TextStyle(
+                                            color: AppColors.textMuted,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.chevron_right_rounded,
+                                    size: 18,
+                                    color: AppColors.textMuted,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    : Tooltip(
+                        message: isExpanded ? '' : 'Sign In',
+                        child: InkWell(
+                          onTap: () => AuthGate.openAuth(context),
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isExpanded ? 14 : 0,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.pacificBlue,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: isExpanded
+                                  ? MainAxisAlignment.start
+                                  : MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.login_rounded,
+                                  size: 20,
+                                  color: AppColors.black,
+                                ),
+                                if (isExpanded) ...[
+                                  const SizedBox(width: 10),
+                                  const Expanded(
+                                    child: Text(
+                                      'Sign In',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: AppColors.black,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ),
               ),
               if (isExpanded)
                 Container(

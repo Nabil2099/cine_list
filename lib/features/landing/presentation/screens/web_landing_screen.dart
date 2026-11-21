@@ -9,10 +9,12 @@ class WebLandingScreen extends StatelessWidget {
     super.key,
     required this.onSignIn,
     required this.onGetStarted,
+    this.onBrowseAsGuest,
   });
 
   final VoidCallback onSignIn;
   final VoidCallback onGetStarted;
+  final VoidCallback? onBrowseAsGuest;
 
   static const _features = [
     (
@@ -97,6 +99,7 @@ class WebLandingScreen extends StatelessWidget {
                       _LandingTopBar(
                         onSignIn: onSignIn,
                         onGetStarted: onGetStarted,
+                        onBrowseAsGuest: onBrowseAsGuest,
                       ),
                       SizedBox(height: isWide ? 64 : 40),
 
@@ -110,6 +113,7 @@ class WebLandingScreen extends StatelessWidget {
                               child: _HeroCopy(
                                 onSignIn: onSignIn,
                                 onGetStarted: onGetStarted,
+                                onBrowseAsGuest: onBrowseAsGuest,
                               ),
                             ),
                             const SizedBox(width: 40),
@@ -120,6 +124,7 @@ class WebLandingScreen extends StatelessWidget {
                         _HeroCopy(
                           onSignIn: onSignIn,
                           onGetStarted: onGetStarted,
+                          onBrowseAsGuest: onBrowseAsGuest,
                         ),
                         const SizedBox(height: 32),
                         const _HeroShowcaseCard(),
@@ -262,10 +267,15 @@ class WebLandingScreen extends StatelessWidget {
 }
 
 class _LandingTopBar extends StatelessWidget {
-  const _LandingTopBar({required this.onSignIn, required this.onGetStarted});
+  const _LandingTopBar({
+    required this.onSignIn,
+    required this.onGetStarted,
+    this.onBrowseAsGuest,
+  });
 
   final VoidCallback onSignIn;
   final VoidCallback onGetStarted;
+  final VoidCallback? onBrowseAsGuest;
 
   @override
   Widget build(BuildContext context) {
@@ -291,6 +301,13 @@ class _LandingTopBar extends StatelessWidget {
           ),
         ),
         const Spacer(),
+        if (onBrowseAsGuest != null) ...[
+          TextButton(
+            onPressed: onBrowseAsGuest,
+            child: const Text('Explore as Guest'),
+          ),
+          const SizedBox(width: 4),
+        ],
         TextButton(onPressed: onSignIn, child: const Text('Sign In')),
         const SizedBox(width: 8),
         FilledButton(onPressed: onGetStarted, child: const Text('Get Started')),
@@ -300,10 +317,15 @@ class _LandingTopBar extends StatelessWidget {
 }
 
 class _HeroCopy extends StatelessWidget {
-  const _HeroCopy({required this.onSignIn, required this.onGetStarted});
+  const _HeroCopy({
+    required this.onSignIn,
+    required this.onGetStarted,
+    this.onBrowseAsGuest,
+  });
 
   final VoidCallback onSignIn;
   final VoidCallback onGetStarted;
+  final VoidCallback? onBrowseAsGuest;
 
   @override
   Widget build(BuildContext context) {
@@ -373,6 +395,18 @@ class _HeroCopy extends StatelessWidget {
               ),
               child: const Text('I Already Have an Account'),
             ),
+            if (onBrowseAsGuest != null)
+              TextButton.icon(
+                onPressed: onBrowseAsGuest,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 15,
+                  ),
+                ),
+                icon: const Icon(Icons.explore_outlined, size: 18),
+                label: const Text('Explore as Guest'),
+              ),
           ],
         ),
       ],

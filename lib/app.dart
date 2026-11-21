@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -43,14 +44,14 @@ class _CineListAppState extends State<CineListApp> {
     final currentUser = _authCubit.state.user;
     if (currentUser != null) {
       _watchlistCubit.bindUser(currentUser.uid);
-      _communityBloc.add(
-        CommunityUserBound(
-          uid: currentUser.uid,
-          email: currentUser.email,
-          displayName: currentUser.displayName,
-        ),
-      );
     }
+    _communityBloc.add(
+      CommunityUserBound(
+        uid: currentUser?.uid,
+        email: currentUser?.email,
+        displayName: currentUser?.displayName,
+      ),
+    );
   }
 
   @override
@@ -144,6 +145,7 @@ class _CineListAppState extends State<CineListApp> {
           title: AppConstants.appName,
           debugShowCheckedModeBanner: false,
           theme: AppTheme.darkTheme,
+          scrollBehavior: const AppScrollBehavior(),
           routerConfig: _appRouter.router,
           builder: (context, child) {
             final mediaQuery = MediaQuery.of(context);
@@ -162,4 +164,18 @@ class _CineListAppState extends State<CineListApp> {
       ),
     );
   }
+}
+
+/// Enables smooth mouse, trackpad, stylus, and touch drag scrolling on Web & Desktop.
+class AppScrollBehavior extends MaterialScrollBehavior {
+  const AppScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => const {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.unknown,
+  };
 }

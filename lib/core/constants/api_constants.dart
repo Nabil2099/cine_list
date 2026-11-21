@@ -64,6 +64,8 @@ abstract final class ApiConstants {
       'https://generativelanguage.googleapis.com/v1beta';
 
   static const String imageBaseUrl = 'https://image.tmdb.org/t/p';
+  static const String posterThumbSize = 'w185';
+  static const String posterCardSize = 'w342';
   static const String posterSize = 'w500';
   static const String backdropSize = 'w780';
   static const String profileSize = 'w185';
@@ -92,10 +94,10 @@ abstract final class ApiConstants {
   static bool get hasCredentials =>
       tmdbApiKey.trim().isNotEmpty || tmdbAccessToken.trim().isNotEmpty;
 
-  static String? posterUrl(String? path) {
+  static String? posterUrl(String? path, {String size = posterSize}) {
     if (path == null || path.trim().isEmpty) return null;
     final normalized = path.startsWith('/') ? path : '/$path';
-    return '$imageBaseUrl/$posterSize$normalized';
+    return '$imageBaseUrl/$size$normalized';
   }
 
   static String? backdropUrl(String? path) {

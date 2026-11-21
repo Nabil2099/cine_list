@@ -40,9 +40,10 @@ class WatchlistMovieTile extends StatelessWidget {
         movie.userRating != null ||
         (movie.userNote != null && movie.userNote!.trim().isNotEmpty);
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+    return RepaintBoundary(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -402,6 +403,7 @@ class WatchlistMovieTile extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }

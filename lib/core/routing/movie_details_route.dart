@@ -43,8 +43,8 @@ abstract final class MovieDetailsRoute {
 
     return CustomTransitionPage<void>(
       key: state.pageKey,
-      transitionDuration: const Duration(milliseconds: 320),
-      reverseTransitionDuration: const Duration(milliseconds: 260),
+      transitionDuration: const Duration(milliseconds: 240),
+      reverseTransitionDuration: const Duration(milliseconds: 200),
       child: MovieDetailsScreen(
         movieId: movieId,
         initialMovie: initialMovie,

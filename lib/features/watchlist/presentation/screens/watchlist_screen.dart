@@ -1,13 +1,19 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/routing/movie_details_route.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/auth_gate.dart';
 import '../../../../core/widgets/empty_state_view.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/loading_view.dart';
+import '../../../../core/widgets/profile_drawer_button.dart';
+import '../../../auth/presentation/cubit/auth_cubit.dart';
+import '../../../auth/presentation/cubit/auth_state.dart';
 import '../../../community/data/models/curated_list_model.dart';
 import '../../../community/data/models/movie_review_model.dart';
 import '../../../community/presentation/bloc/community_bloc.dart';
@@ -157,8 +163,63 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Center(
+    final isSignedIn = context.select<AuthCubit, bool>(
+      (c) => c.state.status == AuthStatus.authenticated,
+    );
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final isWideWeb = kIsWeb && viewportWidth >= AppConstants.tabletBreakpoint;
+
+    if (!isSignedIn) {
+      return ColoredBox(
+        color: AppColors.black,
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: AppConstants.maxContentWidth,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: Row(
+                      children: [
+                        if (!isWideWeb) ...[
+                          const ProfileDrawerButton(),
+                          const SizedBox(width: 12),
+                        ],
+                        Text(
+                          'My Watchlist',
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: GuestPromptView(
+                      icon: Icons.bookmark_border_rounded,
+                      title: 'Your Personal Watchlist',
+                      message:
+                          'Sign in to save Want to Watch titles, mark films watched, track your stats, and curate custom movie lists.',
+                      secondaryLabel: widget.onExploreMovies != null
+                          ? 'Explore Discover'
+                          : null,
+                      onSecondaryTap: widget.onExploreMovies,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ColoredBox(
+      color: AppColors.black,
+      child: SafeArea(
+        child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
             maxWidth: AppConstants.maxContentWidth,
@@ -182,288 +243,348 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
             builder: (context, state) {
               final totalSaved = state.movies.length;
               final activeMovies = state.activeTabMovies;
+              final canPickTonight =
+                  state.wantToWatchMovies.isNotEmpty || activeMovies.isNotEmpty;
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'My Watchlist',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .headlineMedium,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '$totalSaved ${totalSaved == 1 ? 'movie' : 'movies'} saved',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            PopupMenuButton<WatchlistSortOption>(
-                              tooltip: 'Sort watchlist',
-                              color: AppColors.surfaceElevated,
-                              initialValue: state.sortOption,
-                              onSelected: (opt) => context
-                                  .read<WatchlistCubit>()
-                                  .setSortOption(opt),
-                              icon: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 7,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surfaceCard,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: AppColors.surfaceBorder,
-                                  ),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
+              return CustomScrollView(
+                scrollCacheExtent: const ScrollCacheExtent.pixels(600),
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                    sliver: SliverToBoxAdapter(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              if (!isWideWeb) ...[
+                                const ProfileDrawerButton(),
+                                const SizedBox(width: 12),
+                              ],
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Icon(
-                                      Icons.sort_rounded,
-                                      size: 18,
-                                      color: AppColors.khakiBeige,
-                                    ),
-                                    SizedBox(width: 4),
                                     Text(
-                                      'Sort',
-                                      style: TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontSize: 12.5,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                      'My Watchlist',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.headlineMedium,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '$totalSaved ${totalSaved == 1 ? 'movie' : 'movies'} saved',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
                                     ),
                                   ],
                                 ),
                               ),
-                              itemBuilder: (_) => WatchlistSortOption.values
-                                  .map(
-                                    (opt) => PopupMenuItem<WatchlistSortOption>(
-                                      value: opt,
-                                      child: Row(
-                                        children: [
-                                          if (opt == state.sortOption)
-                                            const Icon(
-                                              Icons.check_rounded,
-                                              size: 17,
-                                              color: AppColors.pacificBlue,
-                                            )
-                                          else
-                                            const SizedBox(width: 17),
-                                          const SizedBox(width: 8),
-                                          Text(opt.label),
-                                        ],
+                              if (canPickTonight) ...[
+                                OutlinedButton.icon(
+                                  onPressed: () {
+                                    final candidates =
+                                        state.wantToWatchMovies.isNotEmpty
+                                        ? state.wantToWatchMovies
+                                        : activeMovies;
+                                    TonightsPickDialog.show(
+                                      context,
+                                      allCandidates: candidates,
+                                      collectionCandidates:
+                                          state.selectedCollection != null
+                                          ? activeMovies
+                                          : null,
+                                      collectionName:
+                                          state.selectedCollection?.name,
+                                      onOpenDetails: (picked) => _openDetails(
+                                        context,
+                                        picked,
+                                        'pick-${picked.movieId}',
+                                      ),
+                                    );
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.pacificBlue,
+                                    backgroundColor: AppColors.pacificBlue
+                                        .withValues(alpha: 0.12),
+                                    side: BorderSide(
+                                      color: AppColors.pacificBlue.withValues(
+                                        alpha: 0.45,
                                       ),
                                     ),
-                                  )
-                                  .toList(),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 8,
+                                    ),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.casino_rounded,
+                                    size: 16,
+                                  ),
+                                  label: const Text(
+                                    'Pick',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              PopupMenuButton<WatchlistSortOption>(
+                                tooltip: 'Sort watchlist',
+                                color: AppColors.surfaceElevated,
+                                initialValue: state.sortOption,
+                                onSelected: (opt) => context
+                                    .read<WatchlistCubit>()
+                                    .setSortOption(opt),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surfaceCard,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: AppColors.surfaceBorder,
+                                    ),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.sort_rounded,
+                                        size: 17,
+                                        color: AppColors.khakiBeige,
+                                      ),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'Sort',
+                                        style: TextStyle(
+                                          color: AppColors.textPrimary,
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                itemBuilder: (_) => WatchlistSortOption.values
+                                    .map(
+                                      (opt) =>
+                                          PopupMenuItem<WatchlistSortOption>(
+                                            value: opt,
+                                            child: Row(
+                                              children: [
+                                                if (opt == state.sortOption)
+                                                  const Icon(
+                                                    Icons.check_rounded,
+                                                    size: 17,
+                                                    color:
+                                                        AppColors.pacificBlue,
+                                                  )
+                                                else
+                                                  const SizedBox(width: 17),
+                                                const SizedBox(width: 8),
+                                                Text(opt.label),
+                                              ],
+                                            ),
+                                          ),
+                                    )
+                                    .toList(),
+                              ),
+                            ],
+                          ),
+                          if (totalSaved > 0) ...[
+                            const SizedBox(height: 12),
+                            WatchlistStatsCard(
+                              totalMovies: totalSaved,
+                              watchedCount: state.watchedMovies.length,
+                              completionPercent: state.completionPercent,
+                              totalMinutesWatched: state.totalMinutesWatched,
+                              averagePersonalRating:
+                                  state.averagePersonalRating,
+                              onTap: () => context.push('/stats'),
                             ),
                           ],
-                        ),
-                        if (totalSaved > 0) ...[
                           const SizedBox(height: 12),
-                          WatchlistStatsCard(
-                            totalMovies: totalSaved,
+                          WatchlistTabs(
+                            selectedTab: state.selectedTab,
+                            wantToWatchCount: state.wantToWatchMovies.length,
                             watchedCount: state.watchedMovies.length,
-                            completionPercent: state.completionPercent,
-                            totalMinutesWatched: state.totalMinutesWatched,
-                            averagePersonalRating: state.averagePersonalRating,
-                            onTap: () => context.push('/stats'),
+                            onTabSelected: (tab) =>
+                                context.read<WatchlistCubit>().selectTab(tab),
                           ),
-                        ],
-                        if (state.wantToWatchMovies.isNotEmpty ||
-                            activeMovies.isNotEmpty) ...[
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: () {
-                                final candidates =
-                                    state.wantToWatchMovies.isNotEmpty
-                                    ? state.wantToWatchMovies
-                                    : activeMovies;
-                                TonightsPickDialog.show(
-                                  context,
-                                  allCandidates: candidates,
-                                  collectionCandidates:
-                                      state.selectedCollection != null
-                                      ? activeMovies
-                                      : null,
-                                  collectionName:
-                                      state.selectedCollection?.name,
-                                  onOpenDetails: (picked) => _openDetails(
-                                    context,
-                                    picked,
-                                    'pick-${picked.movieId}',
-                                  ),
-                                );
-                              },
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.pacificBlue,
-                                backgroundColor: AppColors.pacificBlue
-                                    .withValues(alpha: 0.12),
-                                side: BorderSide(
-                                  color: AppColors.pacificBlue.withValues(
-                                    alpha: 0.45,
-                                  ),
+                          if (totalSaved > 0 ||
+                              state.collections.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            _CollectionsBar(state: state),
+                          ],
+                          if (totalSaved > 2) ...[
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: _searchController,
+                              onChanged: (q) => context
+                                  .read<WatchlistCubit>()
+                                  .setSearchQuery(q),
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 13.5,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Filter your watchlist...',
+                                prefixIcon: const Icon(
+                                  Icons.search_rounded,
+                                  size: 19,
                                 ),
-                                padding: const EdgeInsets.symmetric(
+                                suffixIcon: state.searchQuery.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(
+                                          Icons.close_rounded,
+                                          size: 18,
+                                        ),
+                                        onPressed: () {
+                                          _searchController.clear();
+                                          context
+                                              .read<WatchlistCubit>()
+                                              .setSearchQuery('');
+                                        },
+                                      )
+                                    : null,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
                                   vertical: 10,
                                 ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                              ),
-                              icon: const Icon(Icons.casino_rounded, size: 18),
-                              label: const Text(
-                                'Surprise Me',
-                                style: TextStyle(fontWeight: FontWeight.w700),
                               ),
                             ),
-                          ),
+                          ],
                         ],
-                        const SizedBox(height: 12),
-                        WatchlistTabs(
-                          selectedTab: state.selectedTab,
-                          wantToWatchCount: state.wantToWatchMovies.length,
-                          watchedCount: state.watchedMovies.length,
-                          onTabSelected: (tab) =>
-                              context.read<WatchlistCubit>().selectTab(tab),
-                        ),
-                        if (totalSaved > 0 || state.collections.isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          _CollectionsBar(state: state),
-                        ],
-                        if (totalSaved > 2) ...[
-                          const SizedBox(height: 10),
-                          TextField(
-                            controller: _searchController,
-                            onChanged: (q) => context
-                                .read<WatchlistCubit>()
-                                .setSearchQuery(q),
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 13.5,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Filter your watchlist...',
-                              prefixIcon: const Icon(
-                                Icons.search_rounded,
-                                size: 19,
-                              ),
-                              suffixIcon: state.searchQuery.isNotEmpty
-                                  ? IconButton(
-                                      icon: const Icon(
-                                        Icons.close_rounded,
-                                        size: 18,
-                                      ),
-                                      onPressed: () {
-                                        _searchController.clear();
-                                        context
-                                            .read<WatchlistCubit>()
-                                            .setSearchQuery('');
-                                      },
-                                    )
-                                  : null,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 10,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Expanded(child: _buildBody(context, state, activeMovies)),
+                  _buildBodySliver(context, state, activeMovies),
                 ],
               );
             },
           ),
         ),
       ),
+    ),
     );
   }
 
-  Widget _buildBody(
+  Widget _buildBodySliver(
     BuildContext context,
     WatchlistState state,
     List<WatchlistMovieModel> activeMovies,
   ) {
     if (state.status == WatchlistLoadStatus.loading ||
         state.status == WatchlistLoadStatus.initial) {
-      return const LoadingView(message: 'Syncing your watchlist...');
+      return const SliverFillRemaining(
+        hasScrollBody: false,
+        child: LoadingView(message: 'Syncing your watchlist...'),
+      );
     }
 
     if (state.status == WatchlistLoadStatus.error) {
-      return ErrorView(
-        title: 'Watchlist Unavailable',
-        message: state.errorMessage ?? 'Could not load your saved movies.',
+      return SliverFillRemaining(
+        hasScrollBody: false,
+        child: ErrorView(
+          title: 'Watchlist Unavailable',
+          message: state.errorMessage ?? 'Could not load your saved movies.',
+        ),
       );
     }
 
     if (activeMovies.isEmpty) {
       if (state.searchQuery.trim().isNotEmpty) {
-        return EmptyStateView(
-          icon: Icons.search_off_rounded,
-          title: 'No matching movies',
-          message:
-              'No saved movies match "${state.searchQuery.trim()}" in this tab.',
-          actionLabel: 'Clear Filter',
-          onAction: () {
-            _searchController.clear();
-            context.read<WatchlistCubit>().setSearchQuery('');
-          },
+        return SliverFillRemaining(
+          hasScrollBody: false,
+          child: EmptyStateView(
+            icon: Icons.search_off_rounded,
+            title: 'No matching movies',
+            message:
+                'No saved movies match "${state.searchQuery.trim()}" in this tab.',
+            actionLabel: 'Clear Filter',
+            onAction: () {
+              _searchController.clear();
+              context.read<WatchlistCubit>().setSearchQuery('');
+            },
+          ),
         );
       }
 
       final isWantToWatch =
           state.selectedTab == WatchlistFilterStatus.wantToWatch;
-      return EmptyStateView(
-        icon: isWantToWatch
-            ? Icons.bookmark_add_outlined
-            : Icons.check_circle_outline_rounded,
-        title: isWantToWatch ? 'Nothing to watch yet' : 'No watched movies yet',
-        message: isWantToWatch
-            ? 'Save movies from Discover to build your personal watchlist.'
-            : 'Mark movies as watched once you finish watching them.',
-        actionLabel: isWantToWatch && widget.onExploreMovies != null
-            ? 'Explore Discover'
-            : null,
-        onAction: isWantToWatch ? widget.onExploreMovies : null,
+      return SliverFillRemaining(
+        hasScrollBody: false,
+        child: EmptyStateView(
+          icon: isWantToWatch
+              ? Icons.bookmark_add_outlined
+              : Icons.check_circle_outline_rounded,
+          title: isWantToWatch
+              ? 'Nothing to watch yet'
+              : 'No watched movies yet',
+          message: isWantToWatch
+              ? 'Save movies from Discover to build your personal watchlist.'
+              : 'Mark movies as watched once you finish watching them.',
+          actionLabel: isWantToWatch && widget.onExploreMovies != null
+              ? 'Explore Discover'
+              : null,
+          onAction: isWantToWatch ? widget.onExploreMovies : null,
+        ),
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isTablet = constraints.maxWidth >= AppConstants.tabletBreakpoint;
-        if (isTablet) {
-          return GridView.builder(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+      sliver: SliverLayoutBuilder(
+        builder: (context, constraints) {
+          final isTablet =
+              constraints.crossAxisExtent >= AppConstants.tabletBreakpoint;
+          if (isTablet) {
+            return SliverGrid.builder(
+              itemCount: activeMovies.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 14,
+                mainAxisSpacing: 14,
+                mainAxisExtent: 142,
+              ),
+              itemBuilder: (context, index) {
+                final movie = activeMovies[index];
+                final heroTag = 'watchlist-${movie.movieId}';
+                return WatchlistMovieTile(
+                  movie: movie,
+                  heroTag: heroTag,
+                  isMutating: state.isMutating(movie.movieId),
+                  onTap: () => _openDetails(context, movie, heroTag),
+                  onToggleStatus: () => _handleToggleStatus(context, movie),
+                  onRateAndNote: () => _openReviewDialog(context, movie),
+                  onToggleUpNext: () =>
+                      context.read<WatchlistCubit>().toggleUpNext(movie),
+                  onLogRewatch: () =>
+                      context.read<WatchlistCubit>().logRewatch(movie),
+                  onManageCollections: () =>
+                      CollectionPickerSheet.show(context, movie: movie),
+                  onRemove: () => _confirmRemove(context, movie),
+                );
+              },
+            );
+          }
+
+          return SliverList.separated(
             itemCount: activeMovies.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 14,
-              mainAxisSpacing: 14,
-              mainAxisExtent: 142,
-            ),
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final movie = activeMovies[index];
               final heroTag = 'watchlist-${movie.movieId}';
@@ -484,33 +605,8 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
               );
             },
           );
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-          itemCount: activeMovies.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            final movie = activeMovies[index];
-            final heroTag = 'watchlist-${movie.movieId}';
-            return WatchlistMovieTile(
-              movie: movie,
-              heroTag: heroTag,
-              isMutating: state.isMutating(movie.movieId),
-              onTap: () => _openDetails(context, movie, heroTag),
-              onToggleStatus: () => _handleToggleStatus(context, movie),
-              onRateAndNote: () => _openReviewDialog(context, movie),
-              onToggleUpNext: () =>
-                  context.read<WatchlistCubit>().toggleUpNext(movie),
-              onLogRewatch: () =>
-                  context.read<WatchlistCubit>().logRewatch(movie),
-              onManageCollections: () =>
-                  CollectionPickerSheet.show(context, movie: movie),
-              onRemove: () => _confirmRemove(context, movie),
-            );
-          },
-        );
-      },
+        },
+      ),
     );
   }
 }

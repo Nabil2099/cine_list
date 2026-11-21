@@ -12,9 +12,14 @@ import '../widgets/auth_backdrop.dart';
 
 /// Unified Login & Register screen matching the CineList reference design.
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key, this.onBackToLanding});
+  const AuthScreen({
+    super.key,
+    this.onBackToLanding,
+    this.onContinueAsGuest,
+  });
 
   final VoidCallback? onBackToLanding;
+  final VoidCallback? onContinueAsGuest;
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -91,17 +96,31 @@ class _AuthScreenState extends State<AuthScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                if (widget.onBackToLanding != null) ...[
-                                  Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: TextButton.icon(
-                                      onPressed: widget.onBackToLanding,
-                                      icon: const Icon(
-                                        Icons.arrow_back_rounded,
-                                        size: 18,
-                                      ),
-                                      label: const Text('Back to Overview'),
-                                    ),
+                                if (widget.onContinueAsGuest != null ||
+                                    widget.onBackToLanding != null) ...[
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      if (widget.onContinueAsGuest != null)
+                                        TextButton.icon(
+                                          onPressed: widget.onContinueAsGuest,
+                                          icon: const Icon(
+                                            Icons.arrow_back_rounded,
+                                            size: 18,
+                                          ),
+                                          label: const Text(
+                                            'Continue as Guest',
+                                          ),
+                                        )
+                                      else
+                                        const SizedBox.shrink(),
+                                      if (widget.onBackToLanding != null)
+                                        TextButton(
+                                          onPressed: widget.onBackToLanding,
+                                          child: const Text('Overview'),
+                                        ),
+                                    ],
                                   ),
                                   const SizedBox(height: 8),
                                 ],

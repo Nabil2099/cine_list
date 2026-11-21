@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/auth_gate.dart';
 import '../../data/models/app_notification_model.dart';
 import '../../data/models/movie_review_model.dart';
 import '../../data/models/review_comment_model.dart';
@@ -290,57 +291,80 @@ class _ReviewRepliesSheetState extends State<ReviewRepliesSheet> {
                     top: BorderSide(color: AppColors.surfaceBorder),
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _controller,
-                        maxLength: 300,
-                        minLines: 1,
-                        maxLines: 3,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 13.5,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Write a reply...',
-                          counterText: '',
-                          isDense: true,
-                          filled: true,
-                          fillColor: AppColors.surfaceCard,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            borderSide: const BorderSide(
-                              color: AppColors.surfaceBorder,
+                child: currentUid == null
+                    ? SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            AuthGate.openAuth(context);
+                          },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.pacificBlue,
+                            foregroundColor: AppColors.black,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
                             ),
                           ),
+                          icon: const Icon(Icons.login_rounded, size: 18),
+                          label: const Text(
+                            'Sign in to reply',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.filled(
-                      onPressed: _isSubmitting ? null : _submitReply,
-                      style: IconButton.styleFrom(
-                        backgroundColor: AppColors.pacificBlue,
-                        foregroundColor: AppColors.black,
-                      ),
-                      icon: _isSubmitting
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.black,
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _controller,
+                              maxLength: 300,
+                              minLines: 1,
+                              maxLines: 3,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 13.5,
                               ),
-                            )
-                          : const Icon(Icons.send_rounded, size: 18),
-                    ),
-                  ],
-                ),
+                              decoration: InputDecoration(
+                                hintText: 'Write a reply...',
+                                counterText: '',
+                                isDense: true,
+                                filled: true,
+                                fillColor: AppColors.surfaceCard,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  borderSide: const BorderSide(
+                                    color: AppColors.surfaceBorder,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton.filled(
+                            onPressed: _isSubmitting ? null : _submitReply,
+                            style: IconButton.styleFrom(
+                              backgroundColor: AppColors.pacificBlue,
+                              foregroundColor: AppColors.black,
+                            ),
+                            icon: _isSubmitting
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.black,
+                                    ),
+                                  )
+                                : const Icon(Icons.send_rounded, size: 18),
+                          ),
+                        ],
+                      ),
               ),
             ],
           );

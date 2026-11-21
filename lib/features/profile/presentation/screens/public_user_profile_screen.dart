@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/routing/movie_details_route.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/auth_gate.dart';
 import '../../../../shared/models/movie_summary.dart';
 import '../../../../shared/widgets/movie_poster.dart';
 import '../../../community/data/models/curated_list_model.dart';
@@ -211,13 +212,21 @@ class _PublicUserProfileScreenState extends State<PublicUserProfileScreen> {
                             ),
                             followingUids: profile?.followingUids ?? const [],
                           ),
-                          if (!isSelf && viewerUid != null) ...[
+                          if (!isSelf) ...[
                             const SizedBox(height: 16),
                             isFollowing
                                 ? OutlinedButton.icon(
-                                    onPressed: () => bloc.add(
-                                      CommunityFollowToggled(widget.uid),
-                                    ),
+                                    onPressed: () async {
+                                      final allowed =
+                                          await AuthGate.requireAuth(
+                                            context,
+                                            actionLabel: 'follow $displayName',
+                                          );
+                                      if (!allowed || !context.mounted) return;
+                                      bloc.add(
+                                        CommunityFollowToggled(widget.uid),
+                                      );
+                                    },
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: AppColors.textPrimary,
                                       side: const BorderSide(
@@ -231,9 +240,17 @@ class _PublicUserProfileScreenState extends State<PublicUserProfileScreen> {
                                     label: const Text('Following'),
                                   )
                                 : FilledButton.icon(
-                                    onPressed: () => bloc.add(
-                                      CommunityFollowToggled(widget.uid),
-                                    ),
+                                    onPressed: () async {
+                                      final allowed =
+                                          await AuthGate.requireAuth(
+                                            context,
+                                            actionLabel: 'follow $displayName',
+                                          );
+                                      if (!allowed || !context.mounted) return;
+                                      bloc.add(
+                                        CommunityFollowToggled(widget.uid),
+                                      );
+                                    },
                                     style: FilledButton.styleFrom(
                                       backgroundColor: AppColors.pacificBlue,
                                       foregroundColor: AppColors.black,
@@ -351,6 +368,12 @@ class _PublicUserProfileScreenState extends State<PublicUserProfileScreen> {
                           child: _PublicListCard(
                             list: list,
                             onClone: () async {
+                              final allowed = await AuthGate.requireAuth(
+                                context,
+                                actionLabel:
+                                    'clone this list to your Watchlist',
+                              );
+                              if (!allowed || !context.mounted) return;
                               final res = await context
                                   .read<WatchlistCubit>()
                                   .cloneCuratedList(

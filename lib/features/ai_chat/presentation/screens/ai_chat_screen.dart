@@ -8,6 +8,10 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/decoded_image_cache.dart';
+import '../../../../core/widgets/profile_drawer_button.dart';
+import '../../../auth/presentation/cubit/auth_cubit.dart';
+import '../../../auth/presentation/cubit/auth_state.dart';
 import '../../../community/data/models/movie_review_model.dart';
 import '../../../community/presentation/bloc/community_bloc.dart';
 import '../../../watchlist/presentation/cubit/watchlist_cubit.dart';
@@ -246,17 +250,26 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isSignedIn = context.select<AuthCubit, bool>(
+      (c) => c.state.status == AuthStatus.authenticated,
+    );
     final watchlistCount = context.select<WatchlistCubit, int>(
       (cubit) => cubit.state.movies.length,
     );
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final isWideWeb = kIsWeb && viewportWidth >= AppConstants.tabletBreakpoint;
 
-    return SafeArea(
-      child: Center(
+    return ColoredBox(
+      color: AppColors.black,
+      child: SafeArea(
+        child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 860),
           child: Column(
             children: [
               _AiHeader(
+                isSignedIn: isSignedIn,
+                showDrawerButton: !isWideWeb,
                 watchlistCount: watchlistCount,
                 onClear: () => context.read<AiChatCubit>().clearChat(),
               ),
@@ -271,6 +284,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   builder: (context, state) {
                     if (state.messages.isEmpty) {
                       return _AiEmptyPrompts(
+                        isSignedIn: isSignedIn,
                         watchlistCount: watchlistCount,
                         prompts: _quickPrompts,
                         onPromptTap: (p) => _send(p),
@@ -318,6 +332,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 }
@@ -368,8 +383,15 @@ class _MoodPickerBar extends StatelessWidget {
 }
 
 class _AiHeader extends StatelessWidget {
-  const _AiHeader({required this.watchlistCount, required this.onClear});
+  const _AiHeader({
+    required this.isSignedIn,
+    required this.showDrawerButton,
+    required this.watchlistCount,
+    required this.onClear,
+  });
 
+  final bool isSignedIn;
+  final bool showDrawerButton;
   final int watchlistCount;
   final VoidCallback onClear;
 
@@ -383,22 +405,10 @@ class _AiHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 14, 16, 10),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.pacificBlue.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: AppColors.pacificBlue.withValues(alpha: 0.45),
-              ),
-            ),
-            child: const Icon(
-              Icons.auto_awesome_rounded,
-              color: AppColors.pacificBlue,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 12),
+          if (showDrawerButton) ...[
+            const ProfileDrawerButton(),
+            const SizedBox(width: 12),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -409,7 +419,9 @@ class _AiHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '$watchlistCount ${watchlistCount == 1 ? 'movie' : 'movies'} in your watchlist context',
+                  isSignedIn
+                      ? '$watchlistCount ${watchlistCount == 1 ? 'movie' : 'movies'} in your watchlist context'
+                      : 'Ask for movie night picks & recommendations',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -432,11 +444,13 @@ class _AiHeader extends StatelessWidget {
 
 class _AiEmptyPrompts extends StatelessWidget {
   const _AiEmptyPrompts({
+    required this.isSignedIn,
     required this.watchlistCount,
     required this.prompts,
     required this.onPromptTap,
   });
 
+  final bool isSignedIn;
   final int watchlistCount;
   final List<String> prompts;
   final ValueChanged<String> onPromptTap;
@@ -477,7 +491,7 @@ class _AiEmptyPrompts extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            watchlistCount > 0
+            isSignedIn && watchlistCount > 0
                 ? 'Pick a mood above or ask for recommendations tailored to your $watchlistCount saved movies.'
                 : 'Pick a mood above or ask for curated movie recommendations anytime.',
             style: Theme.of(context).textTheme.bodyMedium,
@@ -636,16 +650,19 @@ class _ChatBubble extends StatelessWidget {
                   const SizedBox(height: 6),
                 ],
                 if (message.hasImage) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.memory(
-                      base64Decode(message.imageBase64!),
-                      width: 180,
-                      height: 180,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  if (DecodedImageCache.getOrDecode(message.imageBase64)
+                      case final imgProvider?)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image(
+                        image: imgProvider,
+                        width: 180,
+                        height: 180,
+                        fit: BoxFit.cover,
+                        gaplessPlayback: true,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
                     ),
-                  ),
                   const SizedBox(height: 8),
                 ],
                 FormattedChatText(
@@ -727,17 +744,25 @@ class _PendingImageBar extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: Image.memory(
-                  base64Decode(imageBase64),
-                  width: 54,
-                  height: 54,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const SizedBox(
+                child: switch (DecodedImageCache.getOrDecode(imageBase64)) {
+                  final imgProvider? => Image(
+                    image: imgProvider,
+                    width: 54,
+                    height: 54,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, _, _) => const SizedBox(
+                      width: 54,
+                      height: 54,
+                      child: Icon(Icons.broken_image_outlined),
+                    ),
+                  ),
+                  null => const SizedBox(
                     width: 54,
                     height: 54,
                     child: Icon(Icons.broken_image_outlined),
                   ),
-                ),
+                },
               ),
               Positioned(
                 top: -6,

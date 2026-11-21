@@ -311,10 +311,14 @@ final class _CommunityReviewsReceived extends CommunityEvent {
 }
 
 final class _CommunityReviewsLoadFailed extends CommunityEvent {
-  const _CommunityReviewsLoadFailed(this.message);
+  const _CommunityReviewsLoadFailed(
+    this.message, {
+    this.isPermissionDenied = false,
+  });
 
   final String message;
+  final bool isPermissionDenied;
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [message, isPermissionDenied];
 }

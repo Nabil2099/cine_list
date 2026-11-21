@@ -5,6 +5,7 @@ import '../../../../core/di/injection_container.dart';
 import '../../../../core/routing/movie_details_route.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/auth_gate.dart';
 import '../../../../shared/models/movie_summary.dart';
 import '../../../../shared/widgets/movie_poster.dart';
 import '../../../discover/data/repositories/discover_repository.dart';
@@ -91,6 +92,11 @@ class _AiPickCardsRowState extends State<AiPickCardsRow> {
 
   Future<void> _saveAsCollection() async {
     if (_resolved.isEmpty) return;
+    final allowed = await AuthGate.requireAuth(
+      context,
+      actionLabel: 'save picks as a collection',
+    );
+    if (!allowed || !mounted) return;
     final controller = TextEditingController(text: 'AI Movie Picks');
     final name = await showDialog<String>(
       context: context,
@@ -239,7 +245,12 @@ class _AiPickCardsRowState extends State<AiPickCardsRow> {
                       children: [
                         Expanded(
                           child: InkWell(
-                            onTap: () {
+                            onTap: () async {
+                              final allowed = await AuthGate.requireAuth(
+                                context,
+                                actionLabel: 'save movies to your Watchlist',
+                              );
+                              if (!allowed || !context.mounted) return;
                               if (isSaved) {
                                 watchlistCubit.removeFromWatchlist(
                                   movie.id,

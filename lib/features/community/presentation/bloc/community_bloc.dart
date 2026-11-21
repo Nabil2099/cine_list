@@ -109,24 +109,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
       return;
     }
 
-    _profileSub?.cancel();
-    _reviewsSub?.cancel();
-    _allUsersSub?.cancel();
-    _adminUidsSub?.cancel();
-    _moderatorUidsSub?.cancel();
-    _pollSub?.cancel();
-    _challengeSub?.cancel();
-    _listsSub?.cancel();
-    _notificationsSub?.cancel();
-    _profileSub = null;
-    _reviewsSub = null;
-    _allUsersSub = null;
-    _adminUidsSub = null;
-    _moderatorUidsSub = null;
-    _pollSub = null;
-    _challengeSub = null;
-    _listsSub = null;
-    _notificationsSub = null;
+    _cancelAllStreams();
     _lastReactionAt = null;
     _pendingReactionIds.clear();
     _currentUid = event.uid;
@@ -134,7 +117,13 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
 
     final uid = event.uid;
     if (uid == null) {
-      emit(const CommunityState(status: CommunityStatus.loaded));
+      emit(
+        const CommunityState(
+          status: CommunityStatus.loading,
+          requiresSignInToRead: false,
+        ),
+      );
+      _startPublicStreams();
       return;
     }
 
@@ -145,25 +134,29 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
           uid: uid,
           displayName: _fallbackName ?? 'Movie Fan',
         ),
+        requiresSignInToRead: false,
         clearError: true,
         clearFeedback: true,
       ),
     );
 
-    _startUserStreams(uid);
+    _startPublicStreams();
+    _startAuthenticatedStreams(uid);
   }
 
   Future<void> _onRefreshed(
     CommunityRefreshed event,
     Emitter<CommunityState> emit,
   ) async {
+    _cancelAllStreams();
+    _startPublicStreams();
     final uid = _currentUid;
-    if (uid == null) return;
-    _cancelUserStreams();
-    _startUserStreams(uid);
+    if (uid != null) {
+      _startAuthenticatedStreams(uid);
+    }
   }
 
-  void _cancelUserStreams() {
+  void _cancelAllStreams() {
     _profileSub?.cancel();
     _reviewsSub?.cancel();
     _allUsersSub?.cancel();
@@ -184,26 +177,10 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     _notificationsSub = null;
   }
 
-  void _startUserStreams(String uid) {
-    _profileSub = _repository.watchProfile(uid).listen((profile) {
-      if (!isClosed) add(_CommunityProfileReceived(profile));
-    });
-
+  void _startPublicStreams() {
     try {
       _allUsersSub = _repository.watchAllUsers().listen((users) {
         if (!isClosed) add(_CommunityAllUsersReceived(users));
-      }, onError: (_) {});
-    } catch (_) {}
-
-    try {
-      _adminUidsSub = _repository.watchAdminUids().listen((uids) {
-        if (!isClosed) add(_CommunityAdminUidsReceived(uids));
-      }, onError: (_) {});
-    } catch (_) {}
-
-    try {
-      _moderatorUidsSub = _repository.watchModeratorUids().listen((uids) {
-        if (!isClosed) add(_CommunityModeratorUidsReceived(uids));
       }, onError: (_) {});
     } catch (_) {}
 
@@ -222,6 +199,45 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     try {
       _listsSub = _repository.watchCuratedLists().listen((lists) {
         if (!isClosed) add(_CommunityCuratedListsReceived(lists));
+      }, onError: (_) {});
+    } catch (_) {}
+
+    _reviewsSub = _repository.watchRecentReviews().listen(
+      (reviews) {
+        if (!isClosed) add(_CommunityReviewsReceived(reviews));
+      },
+      onError: (Object error) {
+        if (!isClosed) {
+          final isPermissionDenied =
+              (error is AppException && error.code == 'permission-denied') ||
+              error.toString().toLowerCase().contains('permission-denied');
+          add(
+            _CommunityReviewsLoadFailed(
+              error is AppException
+                  ? error.message
+                  : 'Unable to load community feed. Check Firestore rules.',
+              isPermissionDenied: isPermissionDenied,
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  void _startAuthenticatedStreams(String uid) {
+    _profileSub = _repository.watchProfile(uid).listen((profile) {
+      if (!isClosed) add(_CommunityProfileReceived(profile));
+    });
+
+    try {
+      _adminUidsSub = _repository.watchAdminUids().listen((uids) {
+        if (!isClosed) add(_CommunityAdminUidsReceived(uids));
+      }, onError: (_) {});
+    } catch (_) {}
+
+    try {
+      _moderatorUidsSub = _repository.watchModeratorUids().listen((uids) {
+        if (!isClosed) add(_CommunityModeratorUidsReceived(uids));
       }, onError: (_) {});
     } catch (_) {}
 
@@ -248,23 +264,6 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
         }
       } catch (_) {}
     });
-
-    _reviewsSub = _repository.watchRecentReviews().listen(
-      (reviews) {
-        if (!isClosed) add(_CommunityReviewsReceived(reviews));
-      },
-      onError: (Object error) {
-        if (!isClosed) {
-          add(
-            _CommunityReviewsLoadFailed(
-              error is AppException
-                  ? error.message
-                  : 'Unable to load community feed. Check Firestore rules.',
-            ),
-          );
-        }
-      },
-    );
   }
 
   void _onProfileReceived(
@@ -322,6 +321,7 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
       state.copyWith(
         status: CommunityStatus.loaded,
         reviews: event.reviews,
+        requiresSignInToRead: false,
         clearError: true,
       ),
     );
@@ -331,6 +331,16 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     _CommunityReviewsLoadFailed event,
     Emitter<CommunityState> emit,
   ) {
+    if (_currentUid == null && event.isPermissionDenied) {
+      emit(
+        state.copyWith(
+          status: CommunityStatus.loaded,
+          requiresSignInToRead: true,
+          clearError: true,
+        ),
+      );
+      return;
+    }
     emit(
       state.copyWith(
         status: CommunityStatus.error,
@@ -705,33 +715,47 @@ class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {
     Emitter<CommunityState> emit,
   ) async {
     final uid = _currentUid;
+    if (uid == null || event.optionIndex < 0) return;
+
     final poll = state.pinnedPoll;
-    if (uid == null || poll == null || poll.id != event.pollId) return;
-    if (event.optionIndex < 0 || event.optionIndex >= poll.options.length) {
+    if (poll != null && poll.id == event.pollId) {
+      if (event.optionIndex >= poll.options.length) return;
+
+      final prevVotes = Map<String, int>.from(poll.votesByUid);
+      if (prevVotes[uid] == event.optionIndex) return;
+
+      final nextVotes = Map<String, int>.from(prevVotes)
+        ..[uid] = event.optionIndex;
+      emit(state.copyWith(pinnedPoll: poll.copyWith(votesByUid: nextVotes)));
+
+      try {
+        await _repository.voteOnPoll(
+          pollId: poll.id,
+          uid: uid,
+          optionIndex: event.optionIndex,
+        );
+      } on AppException catch (e) {
+        if (!isClosed) {
+          emit(
+            state.copyWith(
+              pinnedPoll: poll.copyWith(votesByUid: prevVotes),
+              errorMessage: e.message,
+            ),
+          );
+        }
+      }
       return;
     }
 
-    final prevVotes = Map<String, int>.from(poll.votesByUid);
-    if (prevVotes[uid] == event.optionIndex) return;
-
-    final nextVotes = Map<String, int>.from(prevVotes)
-      ..[uid] = event.optionIndex;
-    emit(state.copyWith(pinnedPoll: poll.copyWith(votesByUid: nextVotes)));
-
     try {
       await _repository.voteOnPoll(
-        pollId: poll.id,
+        pollId: event.pollId,
         uid: uid,
         optionIndex: event.optionIndex,
       );
     } on AppException catch (e) {
       if (!isClosed) {
-        emit(
-          state.copyWith(
-            pinnedPoll: poll.copyWith(votesByUid: prevVotes),
-            errorMessage: e.message,
-          ),
-        );
+        emit(state.copyWith(errorMessage: e.message));
       }
     }
   }

@@ -1,17 +1,23 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/routing/movie_details_route.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/auth_gate.dart';
 import '../../../../core/widgets/empty_state_view.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/loading_view.dart';
+import '../../../../core/widgets/profile_drawer_button.dart';
 import '../../../../shared/models/movie_summary.dart';
 import '../../../../shared/widgets/movie_poster.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
+import '../../../watchlist/data/models/watchlist_movie_model.dart';
 import '../../../watchlist/presentation/cubit/watchlist_cubit.dart';
 import '../../data/models/community_poll_model.dart';
 import '../../data/models/curated_list_model.dart';
@@ -51,17 +57,35 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
   }
 
+  String _sectionTitle(CommunityState state) {
+    if (state.searchQuery.trim().isNotEmpty) return 'Matching Reviews';
+    if (state.followingOnly) return 'Following Reviews';
+    return switch (state.sortOption) {
+      CommunitySortOption.curated => 'Curated Reviews',
+      CommunitySortOption.mostHelpful => 'Most Helpful Reviews',
+      CommunitySortOption.highestRated => 'Highest Rated Reviews',
+      CommunitySortOption.latest => 'Recent Reviews',
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUid = context.select<AuthCubit, String?>(
       (c) => c.state.user?.uid,
     );
-    final savedMovieIds = context.select<WatchlistCubit, Set<int>>(
-      (w) => w.state.movies.map((m) => m.movieId).toSet(),
-    );
+    final watchlistMovies = context
+        .select<WatchlistCubit, List<WatchlistMovieModel>>(
+          (w) => w.state.movies,
+        );
+    final savedMovieIds = {for (final m in watchlistMovies) m.movieId};
+    final isWideWeb =
+        kIsWeb &&
+        MediaQuery.sizeOf(context).width >= AppConstants.tabletBreakpoint;
 
-    return SafeArea(
-      child: Center(
+    return ColoredBox(
+      color: AppColors.black,
+      child: SafeArea(
+        child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
             maxWidth: AppConstants.maxContentWidth,
@@ -88,6 +112,16 @@ class _CommunityScreenState extends State<CommunityScreen> {
               final bloc = context.read<CommunityBloc>();
               final reviews = state.filteredReviews;
               final followingCount = state.profile?.followingUids.length ?? 0;
+              final showSpotlightSections =
+                  _subview == _CommunitySubview.reviews &&
+                  !state.requiresSignInToRead &&
+                  state.searchQuery.trim().isEmpty &&
+                  !state.followingOnly;
+              final featured =
+                  showSpotlightSections && state.reviews.length >= 3
+                  ? state.featuredReviews
+                  : const <MovieReviewModel>[];
+              final hiddenRawCount = state.hiddenRawReviewsCount;
 
               return RefreshIndicator(
                 color: AppColors.pacificBlue,
@@ -97,6 +131,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   await Future<void>.delayed(const Duration(milliseconds: 450));
                 },
                 child: CustomScrollView(
+                  scrollCacheExtent: const ScrollCacheExtent.pixels(600),
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
                     SliverPadding(
@@ -105,14 +140,40 @@ class _CommunityScreenState extends State<CommunityScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Community',
-                              style: Theme.of(context).textTheme.headlineMedium,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'See what movie lovers are reviewing',
-                              style: Theme.of(context).textTheme.bodyMedium,
+                            Row(
+                              children: [
+                                if (!isWideWeb) ...[
+                                  const ProfileDrawerButton(),
+                                  const SizedBox(width: 12),
+                                ],
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Community',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.headlineMedium,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Curated reviews, polls & cinema lists',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                _PollsHeaderButton(
+                                  pinnedPoll: state.pinnedPoll,
+                                  currentUid: currentUid,
+                                  onTap: () => context.push('/polls'),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 14),
                             _CommunitySubviewSwitcher(
@@ -122,7 +183,16 @@ class _CommunityScreenState extends State<CommunityScreen> {
                               onSelect: (subview) =>
                                   setState(() => _subview = subview),
                             ),
-                            if (_subview == _CommunitySubview.reviews) ...[
+                            if (_subview == _CommunitySubview.reviews &&
+                                !state.requiresSignInToRead) ...[
+                              if (featured.isNotEmpty) ...[
+                                const SizedBox(height: 16),
+                                _FeaturedReviewsStrip(
+                                  reviews: featured,
+                                  state: state,
+                                  onTapReview: (r) => _openMovie(context, r),
+                                ),
+                              ],
                               if (state.activeChallenge != null) ...[
                                 const SizedBox(height: 14),
                                 _WeeklyChallengeBanner(
@@ -137,24 +207,18 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                       initialMovie: c.toMovieSummary(),
                                     );
                                   },
-                                  onComplete: () => bloc.add(
-                                    CommunityChallengeCompleted(
-                                      state.activeChallenge!.id,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                              if (state.pinnedPoll != null) ...[
-                                const SizedBox(height: 14),
-                                _PinnedPollCard(
-                                  poll: state.pinnedPoll!,
-                                  currentUid: currentUid,
-                                  onVote: (optionIndex) => bloc.add(
-                                    CommunityPollVoted(
-                                      pollId: state.pinnedPoll!.id,
-                                      optionIndex: optionIndex,
-                                    ),
-                                  ),
+                                  onComplete: () async {
+                                    final allowed = await AuthGate.requireAuth(
+                                      context,
+                                      actionLabel: 'join the Watch Party',
+                                    );
+                                    if (!allowed || !context.mounted) return;
+                                    bloc.add(
+                                      CommunityChallengeCompleted(
+                                        state.activeChallenge!.id,
+                                      ),
+                                    );
+                                  },
                                 ),
                               ],
                               const SizedBox(height: 14),
@@ -213,9 +277,20 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                             : 'Following',
                                       ),
                                       selected: state.followingOnly,
-                                      onSelected: (_) => bloc.add(
-                                        const CommunityFollowingFilterToggled(),
-                                      ),
+                                      onSelected: (_) async {
+                                        final allowed =
+                                            await AuthGate.requireAuth(
+                                              context,
+                                              actionLabel:
+                                                  'filter by critics you follow',
+                                            );
+                                        if (!allowed || !context.mounted) {
+                                          return;
+                                        }
+                                        bloc.add(
+                                          const CommunityFollowingFilterToggled(),
+                                        );
+                                      },
                                       visualDensity: VisualDensity.compact,
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 6,
@@ -246,17 +321,43 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    'Recent Reviews',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleLarge,
+                                    _sectionTitle(state),
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleLarge,
                                   ),
-                                  Text(
-                                    '${reviews.length} reviews',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall,
-                                  ),
+                                  if (hiddenRawCount > 0)
+                                    TextButton(
+                                      onPressed: () => bloc.add(
+                                        const CommunitySortChanged(
+                                          CommunitySortOption.latest,
+                                        ),
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      child: Text(
+                                        'Show all (${state.reviews.length})',
+                                        style: const TextStyle(
+                                          color: AppColors.pacificBlue,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    Text(
+                                      '${reviews.length} ${reviews.length == 1 ? 'review' : 'reviews'}',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
+                                    ),
                                 ],
                               ),
                               const SizedBox(height: 12),
@@ -267,23 +368,50 @@ class _CommunityScreenState extends State<CommunityScreen> {
                         ),
                       ),
                     ),
-                    if (_subview == _CommunitySubview.leaderboard)
+                    if (state.requiresSignInToRead)
+                      const SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: GuestPromptView(
+                          icon: Icons.groups_rounded,
+                          title: 'Join the CineList Community',
+                          message:
+                              'Sign in to browse community movie reviews, curated lists, and top critics.',
+                        ),
+                      )
+                    else if (_subview == _CommunitySubview.leaderboard)
                       _LeaderboardSliver(
                         state: state,
                         currentUid: currentUid,
-                        onToggleFollow: (uid) =>
-                            bloc.add(CommunityFollowToggled(uid)),
+                        onToggleFollow: (uid) async {
+                          final allowed = await AuthGate.requireAuth(
+                            context,
+                            actionLabel: 'follow critics',
+                          );
+                          if (!allowed || !context.mounted) return;
+                          bloc.add(CommunityFollowToggled(uid));
+                        },
                       )
                     else if (_subview == _CommunitySubview.lists)
                       _CuratedListsSliver(
                         state: state,
                         currentUid: currentUid,
                         savedMovieIds: savedMovieIds,
-                        onToggleLike: (list) =>
-                            bloc.add(CommunityCuratedListLikeToggled(list)),
+                        onToggleLike: (list) async {
+                          final allowed = await AuthGate.requireAuth(
+                            context,
+                            actionLabel: 'upvote curated lists',
+                          );
+                          if (!allowed || !context.mounted) return;
+                          bloc.add(CommunityCuratedListLikeToggled(list));
+                        },
                         onDelete: (listId) =>
                             bloc.add(CommunityCuratedListDeleted(listId)),
                         onSaveAll: (movies) async {
+                          final allowed = await AuthGate.requireAuth(
+                            context,
+                            actionLabel: 'save movies to your Watchlist',
+                          );
+                          if (!allowed || !context.mounted) return;
                           final watchlist = context.read<WatchlistCubit>();
                           var added = 0;
                           for (final m in movies) {
@@ -309,6 +437,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
                           }
                         },
                         onCloneList: (list) async {
+                          final allowed = await AuthGate.requireAuth(
+                            context,
+                            actionLabel: 'clone this list to your Watchlist',
+                          );
+                          if (!allowed || !context.mounted) return;
                           final res = await context
                               .read<WatchlistCubit>()
                               .cloneCuratedList(
@@ -408,6 +541,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
                               ),
                               onMovieTap: () => _openMovie(context, review),
                               onToggleWatchlist: () async {
+                                final allowed = await AuthGate.requireAuth(
+                                  context,
+                                  actionLabel: 'save movies to your Watchlist',
+                                );
+                                if (!allowed || !context.mounted) return;
                                 final watchlist = context
                                     .read<WatchlistCubit>();
                                 final isSaved = savedMovieIds.contains(
@@ -434,24 +572,43 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                 fallbackName: review.authorName,
                                 fallbackAvatarKey: review.authorAvatarKey,
                               ),
-                              onToggleLike: () => bloc.add(
-                                CommunityReactionToggled(
-                                  review: review,
-                                  isLike: true,
-                                ),
-                              ),
-                              onToggleDislike: () => bloc.add(
-                                CommunityReactionToggled(
-                                  review: review,
-                                  isLike: false,
-                                ),
-                              ),
+                              onToggleLike: () async {
+                                final allowed = await AuthGate.requireAuth(
+                                  context,
+                                  actionLabel: 'react to reviews',
+                                );
+                                if (!allowed || !context.mounted) return;
+                                bloc.add(
+                                  CommunityReactionToggled(
+                                    review: review,
+                                    isLike: true,
+                                  ),
+                                );
+                              },
+                              onToggleDislike: () async {
+                                final allowed = await AuthGate.requireAuth(
+                                  context,
+                                  actionLabel: 'react to reviews',
+                                );
+                                if (!allowed || !context.mounted) return;
+                                bloc.add(
+                                  CommunityReactionToggled(
+                                    review: review,
+                                    isLike: false,
+                                  ),
+                                );
+                              },
                               onReply: () => ReviewRepliesSheet.show(
                                 context,
                                 review: review,
                                 repository: sl<CommunityRepository>(),
                               ),
                               onReport: () async {
+                                final allowed = await AuthGate.requireAuth(
+                                  context,
+                                  actionLabel: 'report a review',
+                                );
+                                if (!allowed || !context.mounted) return;
                                 final res = await ReportReviewDialog.show(
                                   context,
                                   authorName: review.authorName,
@@ -485,6 +642,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 }
@@ -614,179 +772,59 @@ class _CommunitySubviewSwitcher extends StatelessWidget {
   }
 }
 
-class _PinnedPollCard extends StatelessWidget {
-  const _PinnedPollCard({
-    required this.poll,
+class _PollsHeaderButton extends StatelessWidget {
+  const _PollsHeaderButton({
+    required this.pinnedPoll,
     required this.currentUid,
-    required this.onVote,
-  });
-
-  final CommunityPollModel poll;
-  final String? currentUid;
-  final ValueChanged<int> onVote;
-
-  @override
-  Widget build(BuildContext context) {
-    final selectedIndex = poll.selectedOptionFor(currentUid);
-    final totalVotes = poll.totalVotes;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.pacificBlue.withValues(alpha: 0.45),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.poll_rounded,
-                size: 16,
-                color: AppColors.pacificBlue,
-              ),
-              const SizedBox(width: 6),
-              const Text(
-                'Weekly Poll',
-                style: TextStyle(
-                  color: AppColors.pacificBlue,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '$totalVotes ${totalVotes == 1 ? 'vote' : 'votes'}',
-                style: const TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 11.5,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            poll.question,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14.5,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 10),
-          for (var i = 0; i < poll.options.length; i++) ...[
-            _PollOptionTile(
-              label: poll.options[i],
-              percentage: poll.percentageForOption(i),
-              votes: poll.votesForOption(i),
-              selected: selectedIndex == i,
-              showResults: selectedIndex != null,
-              onTap: () => onVote(i),
-            ),
-            if (i < poll.options.length - 1) const SizedBox(height: 8),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _PollOptionTile extends StatelessWidget {
-  const _PollOptionTile({
-    required this.label,
-    required this.percentage,
-    required this.votes,
-    required this.selected,
-    required this.showResults,
     required this.onTap,
   });
 
-  final String label;
-  final double percentage;
-  final int votes;
-  final bool selected;
-  final bool showResults;
+  final CommunityPollModel? pinnedPoll;
+  final String? currentUid;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final pctLabel = '${(percentage * 100).round()}%';
+    final hasUnvotedPoll =
+        pinnedPoll != null && pinnedPoll!.selectedOptionFor(currentUid) == null;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected ? AppColors.pacificBlue : AppColors.surfaceBorder,
-          ),
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.pacificBlue,
+        backgroundColor: AppColors.pacificBlue.withValues(alpha: 0.1),
+        side: BorderSide(
+          color: AppColors.pacificBlue.withValues(alpha: 0.45),
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          children: [
-            if (showResults)
-              Positioned.fill(
-                child: FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: percentage.clamp(0.0, 1.0),
-                  child: Container(
-                    color:
-                        (selected ? AppColors.pacificBlue : AppColors.textMuted)
-                            .withValues(alpha: selected ? 0.22 : 0.12),
-                  ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(Icons.poll_rounded, size: 17),
+          if (hasUnvotedPoll)
+            Positioned(
+              right: -3,
+              top: -3,
+              child: Container(
+                width: 7,
+                height: 7,
+                decoration: const BoxDecoration(
+                  color: AppColors.khakiBeige,
+                  shape: BoxShape.circle,
                 ),
               ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: [
-                  if (selected) ...[
-                    const Icon(
-                      Icons.check_circle_rounded,
-                      size: 15,
-                      color: AppColors.pacificBlue,
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        color: selected
-                            ? AppColors.textPrimary
-                            : AppColors.textSecondary,
-                        fontSize: 13,
-                        fontWeight: selected
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  if (showResults) ...[
-                    const SizedBox(width: 8),
-                    Text(
-                      '$pctLabel ($votes)',
-                      style: TextStyle(
-                        color: selected
-                            ? AppColors.pacificBlue
-                            : AppColors.textMuted,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
             ),
-          ],
-        ),
+        ],
+      ),
+      label: const Text(
+        'Polls',
+        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -1212,7 +1250,7 @@ class _LeaderboardSliver extends StatelessWidget {
             isAdmin: state.adminUids.contains(user.uid),
             isModerator: state.moderatorUids.contains(user.uid),
             isFollowing: isFollowing,
-            onToggleFollow: (currentUid == null || isSelf)
+            onToggleFollow: isSelf
                 ? null
                 : () => onToggleFollow(user.uid),
             onTap: () => UserProfileDialog.show(
@@ -1613,6 +1651,192 @@ class _WeeklyChallengeBanner extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _FeaturedReviewsStrip extends StatelessWidget {
+  const _FeaturedReviewsStrip({
+    required this.reviews,
+    required this.state,
+    required this.onTapReview,
+  });
+
+  final List<MovieReviewModel> reviews;
+  final CommunityState state;
+  final ValueChanged<MovieReviewModel> onTapReview;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Featured Reviews',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: AppColors.khakiBeige,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 138,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: reviews.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final review = reviews[index];
+              final authorProfile = state.userProfilesByUid[review.uid];
+              final isAdmin = state.adminUids.contains(review.uid);
+              final isMod = state.moderatorUids.contains(review.uid);
+
+              return RepaintBoundary(
+                child: InkWell(
+                  onTap: () => onTapReview(review),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    width: 280,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          AppColors.surfaceCard,
+                          AppColors.pacificBlue.withValues(alpha: 0.08),
+                        ],
+                      ),
+                      border: Border.all(
+                        color: AppColors.pacificBlue.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        MoviePoster(
+                          posterPath: review.posterPath,
+                          width: 60,
+                          height: 92,
+                          borderRadius: 10,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                review.movieTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.khakiBeige,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Row(
+                                children: [
+                                  UserAvatar(
+                                    avatarKey: review.authorAvatarKey,
+                                    photoBase64: authorProfile?.photoBase64,
+                                    reputation: authorProfile?.reputation ?? 0,
+                                    isAdmin: isAdmin,
+                                    isModerator: isMod,
+                                    showRankBadge: false,
+                                    radius: 9,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: Text(
+                                      review.authorName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.star_rounded,
+                                    size: 13,
+                                    color: AppColors.starAmber,
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    '${review.rating}',
+                                    style: const TextStyle(
+                                      color: AppColors.starAmber,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Expanded(
+                                child: Text(
+                                  review.hasSpoilers
+                                      ? 'Contains spoilers · Tap to read'
+                                      : review.comment,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: review.hasSpoilers
+                                        ? AppColors.khakiBeige
+                                        : AppColors.textPrimary,
+                                    fontSize: 12,
+                                    height: 1.32,
+                                  ),
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.thumb_up_outlined,
+                                    size: 11.5,
+                                    color: AppColors.textMuted,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${review.likedBy.length}',
+                                    style: const TextStyle(
+                                      color: AppColors.textMuted,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Icon(
+                                    Icons.chat_bubble_outline_rounded,
+                                    size: 11.5,
+                                    color: AppColors.textMuted,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${review.replyCount}',
+                                    style: const TextStyle(
+                                      color: AppColors.textMuted,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

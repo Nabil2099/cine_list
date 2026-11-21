@@ -133,9 +133,19 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
     if (state.isSearching) {
       await _performSearch(state.searchQuery.trim(), page: 1, emit: emit);
     } else if (state.selectedGenreId != null) {
-      await _loadGenre(state.selectedGenreId!, page: 1, emit: emit);
+      await _loadGenre(
+        state.selectedGenreId!,
+        page: 1,
+        emit: emit,
+        forceRefresh: true,
+      );
     } else {
-      await _loadCategory(state.selectedCategory, page: 1, emit: emit);
+      await _loadCategory(
+        state.selectedCategory,
+        page: 1,
+        emit: emit,
+        forceRefresh: true,
+      );
     }
   }
 
@@ -169,6 +179,7 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
     int genreId, {
     required int page,
     required Emitter<DiscoverState> emit,
+    bool forceRefresh = false,
   }) async {
     final requestId = ++_activeRequestId;
     if (page == 1) {
@@ -182,7 +193,13 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
     }
 
     try {
-      final response = await _repository.fetchByGenre(genreId, page: page);
+      final response = forceRefresh
+          ? await _repository.fetchByGenre(
+              genreId,
+              page: page,
+              forceRefresh: true,
+            )
+          : await _repository.fetchByGenre(genreId, page: page);
       if (requestId != _activeRequestId || emit.isDone || isClosed) return;
 
       final combined = page == 1
@@ -219,6 +236,7 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
     DiscoverCategory category, {
     required int page,
     required Emitter<DiscoverState> emit,
+    bool forceRefresh = false,
   }) async {
     final requestId = ++_activeRequestId;
     if (page == 1) {
@@ -232,7 +250,13 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
     }
 
     try {
-      final response = await _repository.fetchByCategory(category, page: page);
+      final response = forceRefresh
+          ? await _repository.fetchByCategory(
+              category,
+              page: page,
+              forceRefresh: true,
+            )
+          : await _repository.fetchByCategory(category, page: page);
       if (requestId != _activeRequestId || emit.isDone || isClosed) return;
 
       final combined = page == 1

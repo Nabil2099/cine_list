@@ -61,8 +61,9 @@ class CommunityReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
+    return RepaintBoundary(
+      child: Container(
+        padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(18),
@@ -508,6 +509,7 @@ class CommunityReviewCard extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }

@@ -114,7 +114,7 @@ class CommunityRepository {
     }
   }
 
-  Stream<List<MovieReviewModel>> watchRecentReviews({int limit = 40}) {
+  Stream<List<MovieReviewModel>> watchRecentReviews({int limit = 60}) {
     return _reviewsRef
         .orderBy('createdAt', descending: true)
         .limit(limit)
@@ -479,6 +479,19 @@ class CommunityRepository {
           }
           return null;
         });
+  }
+
+  Stream<List<CommunityPollModel>> watchPolls({int limit = 20}) {
+    return _pollsRef
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map((doc) => CommunityPollModel.fromMap(doc.id, doc.data()))
+              .where((poll) => poll.options.length >= 2)
+              .toList(),
+        );
   }
 
   Future<void> createPoll({

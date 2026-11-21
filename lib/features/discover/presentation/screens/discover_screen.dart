@@ -267,7 +267,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         child: ColoredBox(
           color: AppColors.black,
           child: SafeArea(
-        child: Center(
+            bottom: false,
+            child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
             maxWidth: AppConstants.maxContentWidth,
@@ -799,9 +800,10 @@ class _DiscoverLoadedSlivers extends StatelessWidget {
     final isWide =
         MediaQuery.sizeOf(context).width >= AppConstants.tabletBreakpoint;
     final horizontalPad = isWide ? 20.0 : 14.0;
+    final bottomPad = MediaQuery.paddingOf(context).bottom + 16;
 
     return SliverPadding(
-      padding: EdgeInsets.fromLTRB(horizontalPad, 16, horizontalPad, 28),
+      padding: EdgeInsets.fromLTRB(horizontalPad, 16, horizontalPad, bottomPad),
       sliver: SliverMainAxisGroup(
         slivers: [
           if (featuredMovie != null || carouselMovies.isNotEmpty)

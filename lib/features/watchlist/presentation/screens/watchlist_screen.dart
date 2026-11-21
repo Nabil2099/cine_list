@@ -219,6 +219,7 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
     return ColoredBox(
       color: AppColors.black,
       child: SafeArea(
+        bottom: false,
         child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(

@@ -184,6 +184,7 @@ class FollowingFeedScreen extends StatelessWidget {
     return ColoredBox(
       color: AppColors.black,
       child: SafeArea(
+        bottom: false,
         child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(

@@ -57,6 +57,7 @@ class AppShell extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.black,
+      extendBody: navigationShell.currentIndex != 2,
       drawer: const DiscoverProfileDrawer(),
       body: navigationShell,
       bottomNavigationBar: AppBottomNavigationBar(

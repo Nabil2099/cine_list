@@ -279,6 +279,8 @@ class _LandingTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isWide = MediaQuery.sizeOf(context).width >= 640;
+
     return Row(
       children: [
         ClipRRect(
@@ -291,17 +293,20 @@ class _LandingTopBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        const Text(
-          'CineList',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.4,
+        const Expanded(
+          child: Text(
+            'CineList',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
+            ),
           ),
         ),
-        const Spacer(),
-        if (onBrowseAsGuest != null) ...[
+        if (isWide && onBrowseAsGuest != null) ...[
           TextButton(
             onPressed: onBrowseAsGuest,
             child: const Text('Explore as Guest'),
@@ -309,8 +314,13 @@ class _LandingTopBar extends StatelessWidget {
           const SizedBox(width: 4),
         ],
         TextButton(onPressed: onSignIn, child: const Text('Sign In')),
-        const SizedBox(width: 8),
-        FilledButton(onPressed: onGetStarted, child: const Text('Get Started')),
+        if (isWide) ...[
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: onGetStarted,
+            child: const Text('Get Started'),
+          ),
+        ],
       ],
     );
   }

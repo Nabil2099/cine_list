@@ -1,6 +1,7 @@
 import 'package:cine_list/features/auth/presentation/widgets/google_sign_in_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -16,10 +17,12 @@ class AuthScreen extends StatefulWidget {
     super.key,
     this.onBackToLanding,
     this.onContinueAsGuest,
+    this.postAuthRedirectPath = '/discover',
   });
 
   final VoidCallback? onBackToLanding;
   final VoidCallback? onContinueAsGuest;
+  final String postAuthRedirectPath;
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -69,13 +72,29 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.black,
-      body: BlocListener<AuthCubit, AuthState>(
-        listenWhen: (prev, curr) =>
-            prev.infoMessage != curr.infoMessage && curr.infoMessage != null,
-        listener: (context, state) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(state.infoMessage!)));
-        },
+      body: MultiBlocListener(
+        listeners: [
+          BlocListener<AuthCubit, AuthState>(
+            listenWhen: (prev, curr) =>
+                prev.infoMessage != curr.infoMessage && curr.infoMessage != null,
+            listener: (context, state) {
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(SnackBar(content: Text(state.infoMessage!)));
+            },
+          ),
+          BlocListener<AuthCubit, AuthState>(
+            listenWhen: (prev, curr) => prev.status != curr.status,
+            listener: (context, state) {
+              final router = GoRouter.maybeOf(context);
+              if (router == null) return;
+              if (state.status == AuthStatus.authenticated) {
+                router.go(widget.postAuthRedirectPath);
+              } else if (state.status == AuthStatus.unverified) {
+                router.go('/verify-email');
+              }
+            },
+          ),
+        ],
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.only(bottom: 28),

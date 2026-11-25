@@ -36,7 +36,12 @@ class AppRouter {
       _refreshNotifier.trigger();
     });
 
-    _authSub = authCubit.stream.listen((_) => _refreshNotifier.trigger());
+    _authSub = authCubit.stream.listen((authState) {
+      if (authState.status == AuthStatus.authenticated) {
+        _hasEnteredGuestMode = false;
+      }
+      _refreshNotifier.trigger();
+    });
     _discoverSub = discoverBloc.stream.listen(
       (_) => _refreshNotifier.trigger(),
     );
@@ -53,6 +58,7 @@ class AppRouter {
 
   bool _minDurationElapsed = false;
   bool _maxWaitElapsed = false;
+  bool _hasEnteredGuestMode = false;
 
   static const Set<String> _protectedRoutes = {
     '/profile',
@@ -113,11 +119,12 @@ class AppRouter {
         return location == '/verify-email' ? null : '/verify-email';
       }
 
-      // Guest Mode (unauthenticated): launch straight to Discover and guard account-only routes.
+      // Guest Mode (unauthenticated): show Overview (/welcome) before exploring,
+      // then keep Discover & public routes accessible and guard account-only routes.
       if (location == '/' ||
           location == '/splash' ||
           location == '/verify-email') {
-        return '/discover';
+        return _hasEnteredGuestMode ? '/discover' : '/welcome';
       }
       if (_protectedRoutes.contains(location)) {
         return '/auth?from=${Uri.encodeComponent(state.uri.toString())}';
@@ -140,15 +147,23 @@ class AppRouter {
             context.read<AuthCubit>().setRegisterMode(true);
             context.go('/auth');
           },
-          onBrowseAsGuest: () => context.go('/discover'),
+          onBrowseAsGuest: () {
+            _hasEnteredGuestMode = true;
+            context.go('/discover');
+          },
         ),
       ),
       GoRoute(
         path: '/auth',
         builder: (context, state) => AuthScreen(
-          onContinueAsGuest: () =>
-              context.canPop() ? context.pop() : context.go('/discover'),
-          onBackToLanding: kIsWeb ? () => context.go('/welcome') : null,
+          postAuthRedirectPath:
+              _sanitizeReturnPath(state.uri.queryParameters['from']) ??
+              '/discover',
+          onContinueAsGuest: () {
+            _hasEnteredGuestMode = true;
+            context.canPop() ? context.pop() : context.go('/discover');
+          },
+          onBackToLanding: () => context.go('/welcome'),
         ),
       ),
       GoRoute(

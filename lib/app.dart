@@ -1,3 +1,4 @@
+import 'package:device_preview/device_preview.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -144,20 +145,22 @@ class _CineListAppState extends State<CineListApp> {
         child: MaterialApp.router(
           title: AppConstants.appName,
           debugShowCheckedModeBanner: false,
+          locale: DevicePreview.locale(context),
           theme: AppTheme.darkTheme,
           scrollBehavior: const AppScrollBehavior(),
           routerConfig: _appRouter.router,
           builder: (context, child) {
+            final previewChild = DevicePreview.appBuilder(context, child);
             final mediaQuery = MediaQuery.of(context);
             final isMobile = mediaQuery.size.width < 600;
-            if (!isMobile || child == null) {
-              return child ?? const SizedBox.shrink();
+            if (!isMobile) {
+              return previewChild;
             }
             final currentScale = mediaQuery.textScaler.scale(1.0);
             final scaled = (currentScale * 0.90).clamp(0.85, 1.15);
             return MediaQuery(
               data: mediaQuery.copyWith(textScaler: TextScaler.linear(scaled)),
-              child: child,
+              child: previewChild,
             );
           },
         ),
